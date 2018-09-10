@@ -94,7 +94,7 @@ def main():
 
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
-    mnist_data = MNIST_SHIFT('../data', 10000, 3, 0.1, target_label=2, train=True, download=False,
+    mnist_data = MNIST_SHIFT('data', 10000, 3, 0.1, target_label=2, train=True, download=True,
     	transform=transforms.Compose([
                        transforms.ToTensor(),
                        transforms.Normalize((0.1307,), (0.3081,))
@@ -146,7 +146,7 @@ def main():
     #predictions = torch.tensor(predictions)
     C_yy = np.zeros((n_class, n_class))
     m_train_v = m_train - m_train_t 
-    print(m_train_v)
+    #print(m_train_v)
     
     predictions = np.concatenate(predictions)
     train_v_labels = train_v_labels.numpy()
@@ -156,7 +156,7 @@ def main():
         for j in range(n_class):
             C_yy[i,j] = float(len(np.where((predictions== i)&(train_v_labels==j))[0]))/m_train_v
 		
-	print(C_yy)
+	#print(C_yy)
 	# prediction on x_test to estimate mu_y
     test_loader = data.DataLoader(test_data,
     	batch_size=args.batch_size, shuffle=False, **kwargs)
@@ -166,7 +166,7 @@ def main():
     for i in range(n_class):
         mu_y[i] = float(len(np.where(predictions == i)[0]))/m_test
 
-    print(mu_y)
+    #print(mu_y)
 	# compute weights
     print(np.linalg.inv(C_yy*10))
     w = np.matmul(np.linalg.inv(C_yy),  mu_y)

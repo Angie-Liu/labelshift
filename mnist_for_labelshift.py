@@ -212,7 +212,7 @@ class MNIST_SHIFT(data.Dataset):
         for url in self.urls:
             filename = url.rpartition('/')[2]
             file_path = os.path.join(self.root, self.raw_folder, filename)
-            datasets.utils.utils.download_urldownload_url(url, root=os.path.join(self.root, self.raw_folder),
+            datasets.utils.download_url(url, root=os.path.join(self.root, self.raw_folder),
                          filename=filename, md5=None)
             with open(file_path.replace('.gz', ''), 'wb') as out_f, \
                     gzip.GzipFile(file_path) as zip_f:
@@ -260,6 +260,48 @@ class WEIGHTED_DATA(data.Dataset):
 
     def __len__(self):
         return len(self.dataset)
+
+def get_int(b):
+    return int(codecs.encode(b, 'hex'), 16)
+
+
+def parse_byte(b):
+    if isinstance(b, str):
+        return ord(b)
+    return b
+
+
+def read_label_file(path):
+    with open(path, 'rb') as f:
+        data = f.read()
+        assert get_int(data[:4]) == 2049
+        length = get_int(data[4:8])
+        labels = [parse_byte(b) for b in data[8:]]
+        assert len(labels) == length
+        return torch.LongTensor(labels)
+
+
+def read_image_file(path):
+    with open(path, 'rb') as f:
+        data = f.read()
+        assert get_int(data[:4]) == 2051
+        length = get_int(data[4:8])
+        num_rows = get_int(data[8:12])
+        num_cols = get_int(data[12:16])
+        images = []
+        idx = 16
+        for l in range(length):
+            img = []
+            images.append(img)
+            for r in range(num_rows):
+                row = []
+                img.append(row)
+                for c in range(num_cols):
+                    row.append(parse_byte(data[idx]))
+                    idx += 1
+        assert len(images) == length
+        return torch.ByteTensor(images).view(-1, 28, 28)
+
 
 
 
