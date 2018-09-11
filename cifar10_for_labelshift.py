@@ -141,6 +141,7 @@ class CIFAR10_SHIFT(data.Dataset):
             num_knock = int(num_target * parameter)
             train_data = np.delete(train_data, indices_target[0:num_knock], 0)
             train_labels = np.delete(train_labels, indices_target[0:num_knock])
+            num_train = len(train_data)
             
         elif shift_type == 2:
             if target_label == None:
@@ -198,7 +199,11 @@ class CIFAR10_SHIFT(data.Dataset):
         else:
             raise RuntimeError("Invalid shift type.")
 
-        
+        # training and testing has same size
+        if int(num_train/2) < m_test:
+            m_test = int(num_train/2)
+            test_data = test_data[range(m_test)]
+            test_labels = test_labels[range(m_test)]
         features = np.concatenate((test_data, train_data))
         features = features.reshape((-1, 3, 32, 32))
         features = features.transpose((0, 2, 3, 1))  # convert to HWC

@@ -87,7 +87,7 @@ def test(args, model, device, test_loader):
             prediction = np.concatenate((prediction, pred))
 
     test_loss /= len(test_loader.dataset)
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+    print('Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
     return prediction
@@ -106,8 +106,10 @@ def main():
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=2, metavar='N',
-                        help='number of epochs to train (default: 10)')
+    parser.add_argument('--epochs-estimation', type=int, default=5, metavar='N',
+                        help='number of epochs in weight estimation (default: 5)')
+    parser.add_argument('--epochs-training', type=int, default=20, metavar='N',
+                        help='number of epochs in training (default: 20)')
     parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                         help='learning rate (default: 0.01)')
     parser.add_argument('--momentum', type=float, default=0.5, metavar='M',
@@ -124,26 +126,25 @@ def main():
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
     if args.data_name  == 'mnist':
-        raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 2, 0.1, target_label=2, train=True, download=True,
+        raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 2, 0.6, target_label=2, train=True, download=True,
         	transform=transforms.Compose([
                            transforms.ToTensor(),
                            transforms.Normalize((0.1307,), (0.3081,))
                            ]))
         D_in = 784
-        model = Net(D_in, 256, 10).to(device)
+        
     elif args.data_name == 'cifar10':
-        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 2, 0.2, target_label=2,
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 2, 0.3, target_label=2,
             transform=transforms.Compose([
                         transforms.ToTensor(),
                         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
                         ]), download=True)
         D_in = 3072
-        model = ConvNet().to(device)
+        # model = ConvNet().to(device)
     else:
         raise RuntimeError("Unsupported dataset")
 
     # saparate into training and testing
-    # the first 20000 are testing set
     m = len(raw_data)
     m_test = raw_data.get_testsize()
     print('Test size,', m_test)
@@ -173,13 +174,13 @@ def main():
     test_loader = data.DataLoader(train_v_data,
     	batch_size=args.batch_size, shuffle=False, **kwargs)
     
-    
+    model = Net(D_in, 256, 10).to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
-    print('Training using training_data1, testing on training_data2 to estimate weights.') 
-    for epoch in range(1, args.epochs + 1):
+    print('\nTraining using training_data1, testing on training_data2 to estimate weights.') 
+    for epoch in range(1, args.epochs_estimation + 1):
         train(args, model, device, train_loader, optimizer, epoch)
     
-    print('Testing on training_data2 to estimate C_yy')
+    print('\nTesting on training_data2 to estimate C_yy.')
     predictions = test(args, model, device, test_loader)
 
     # compute C_yy 
@@ -195,7 +196,7 @@ def main():
 		
 	#print(C_yy)
 	# prediction on x_test to estimate mu_y
-    print('Testing on test data to estimate mu_y')
+    print('\nTesting on test data to estimate mu_y.')
     test_loader = data.DataLoader(test_data,
     	batch_size=args.batch_size, shuffle=False, **kwargs)
     predictions = test(args, model, device, test_loader)
@@ -218,19 +219,49 @@ def main():
     true_w = mu_y_test/mu_y_train
     print('True w is', true_w)
     mse = sum(np.square(true_w - w))/n_class
-    print('mean square error, ', mse)
+    print('Mean square error, ', mse)
+
+    # fix w < 0
+    w[np.where(w < 0)[0]] = 0
+    print('If there is negative w, fix with 0:', w)
+    
 
 	# Learning IW ERM
-    print('Training using full training data with estimated weights, testing on test set.')
+    print('\nTraining using full training data with estimated weights, testing on test set.')
+    model = Net(D_in, 256, 10).to(device)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     weights = [w[train_labels]][0]
     weighted_train = WEIGHTED_DATA(train_data, weights)
-    train_loader = data.DataLoader(weighted_train,
+    m_validate = int(0.1*m_train)
+    train_loader = data.DataLoader(data.Subset(weighted_train, range(m_validate)),
         batch_size=args.batch_size, shuffle=True, **kwargs)
-    for epoch in range(1, args.epochs + 1):
-        train(args, model, device, train_loader, optimizer, epoch)   
-    print('Testing on test set')
+    # 10% validation set
+    validate_loader = data.DataLoader(data.Subset(weighted_train, range(m_validate, m_train)),
+        batch_size=args.batch_size, shuffle=True, **kwargs)
+    for epoch in range(1, args.epochs_training + 1):
+        train(args, model, device, train_loader, optimizer, epoch) 
+        # validation
+        test(args, model, device, validate_loader)  
+    print('\nTesting on test set')
     test(args, model, device, test_loader)
 
+    # Retrain unweighted ERM using full training data, to ensure fair comparison
+    print('\nTraining using full training data (unweighted), testing on test set.')
+    model = Net(D_in, 256, 10).to(device)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
+    train_loader = data.DataLoader(data.Subset(train_data, range(m_validate)),
+        batch_size=args.batch_size, shuffle=True, **kwargs)
+    # 10% validation set
+    validate_loader = data.DataLoader(data.Subset(train_data, range(m_validate, m_train)),
+        batch_size=args.batch_size, shuffle=True, **kwargs)
+    for epoch in range(1, args.epochs_training + 1):
+        train(args, model, device, train_loader, optimizer, epoch)
+        # validation
+        test(args, model, device, validate_loader)     
+    print('\nTesting on test set')
+    test_loader = data.DataLoader(test_data,
+        batch_size=args.batch_size, shuffle=False, **kwargs)
+    test(args, model, device, test_loader)
 
 
 

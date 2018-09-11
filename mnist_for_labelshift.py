@@ -148,8 +148,14 @@ class MNIST_SHIFT(data.Dataset):
         else:
             raise RuntimeError("Invalid shift type.")
 
-        self.data = torch.from_numpy(np.concatenate((test_data, train_data)))
 
+        # training and testing has same size
+        if int(num_train/2) < m_test:
+            m_test = int(num_train/2)
+            test_data = test_data[range(m_test)]
+            test_labels = test_labels[range(m_test)]
+
+        self.data = torch.from_numpy(np.concatenate((test_data, train_data)))
         self.labels = torch.from_numpy(np.concatenate((test_labels, train_labels)))
         self.train_labels = train_labels
         self.test_labels = test_labels
