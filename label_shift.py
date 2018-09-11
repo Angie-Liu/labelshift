@@ -8,26 +8,48 @@ import torch.utils.data as data
 from torchvision import datasets, transforms
 import numpy as np
 from mnist_for_labelshift import MNIST_SHIFT
+from cifar10_for_labelshift import CIFAR10_SHIFT
 from mnist_for_labelshift import WEIGHTED_DATA
+import torchvision
+from torchvision.models import *
 
 class Net(nn.Module):
-    def __init__(self):
+    def __init__(self, D_in, H, D_out):
         super(Net, self).__init__()
-        self.D_in = 784
-        self.H = 256
-        self.D_out = 10
+        self.D_in = D_in
+        self.H = H
+        self.D_out = D_out
         self.model = torch.nn.Sequential(
 			torch.nn.Linear(self.D_in, self.H),
 			torch.nn.ReLU(),
-			torch.nn.Linear(self.H, self.D_out),
+			torch.nn.Linear(self.H, self.H),
 			)
 
     def forward(self, x):
-    	x = x.view(-1, 28*28)
+    	x = x.view(-1, self.D_in)
         x = self.model(x)
-        x = F.log_softmax(x, dim=1)
         return x
-        
+
+class ConvNet(nn.Module):
+    def __init__(self):
+        super(ConvNet, self).__init__()
+        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, 5)
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, 10)
+
+    def forward(self, x):
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1, 16 * 5 * 5)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+
 
 def train(args, model, device, train_loader, optimizer, epoch):
     model.train()
@@ -35,9 +57,10 @@ def train(args, model, device, train_loader, optimizer, epoch):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
-   
-        
-        loss = F.nll_loss(output, target)
+     
+        criterion = nn.CrossEntropyLoss()
+        loss = criterion(output, target)
+
         loss.backward()
         optimizer.step()
         if batch_idx % args.log_interval == 0:
@@ -54,7 +77,9 @@ def test(args, model, device, test_loader):
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            test_loss += F.nll_loss(output, target, reduction='sum').item() # sum up batch loss
+            criterion = nn.CrossEntropyLoss(reduction='sum')
+            loss = criterion(output, target)
+            test_loss += loss.item()# sum up batch loss
             pred = output.max(1, keepdim=True)[1] # get the index of the max log-probability
 
             correct += pred.eq(target.view_as(pred)).sum().item()
@@ -72,12 +97,16 @@ def test(args, model, device, test_loader):
 
 def main():
     # Training settings
-    parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
+    parser = argparse.ArgumentParser(description='Blackbox Label Shift')
+    parser.add_argument('--data-name', type=str, default='mnist', metavar='N',
+                        help='dataset name, mnist or cifar10 (default: mnist)')
+    parser.add_argument('--sample-size', type=int, default=20000, metavar='N',
+                        help='sample size for both training and testing (default: 50000)')
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs', type=int, default=10, metavar='N',
+    parser.add_argument('--epochs', type=int, default=2, metavar='N',
                         help='number of epochs to train (default: 10)')
     parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                         help='learning rate (default: 0.01)')
@@ -85,7 +114,7 @@ def main():
                         help='SGD momentum (default: 0.5)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
-    parser.add_argument('--log-interval', type=int, default=10, metavar='N',
+    parser.add_argument('--log-interval', type=int, default=1000, metavar='N',
                         help='how many batches to wait before logging training status')
     args = parser.parse_args()
     use_cuda = not args.no_cuda and torch.cuda.is_available()
@@ -94,33 +123,45 @@ def main():
 
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
-    mnist_data = MNIST_SHIFT('data', 10000, 3, 0.1, target_label=2, train=True, download=True,
-    	transform=transforms.Compose([
-                       transforms.ToTensor(),
-                       transforms.Normalize((0.1307,), (0.3081,))
-                       ]))
+    if args.data_name  == 'mnist':
+        raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 2, 0.2, target_label=2, train=True, download=True,
+        	transform=transforms.Compose([
+                           transforms.ToTensor(),
+                           transforms.Normalize((0.1307,), (0.3081,))
+                           ]))
+        D_in = 784
+        model = Net(D_in, 256, 10).to(device)
+    elif args.data_name == 'cifar10':
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 3, 0.01, target_label=2,
+            transform=transforms.Compose([
+                        transforms.ToTensor(),
+                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                        ]), download=True)
+        D_in = 3072
+        model = ConvNet().to(device)
+    else:
+        raise RuntimeError("Unsupported dataset")
 
     # saparate into training and testing
     # the first 20000 are testing set
-    m = len(mnist_data)
-    print(m)
-    m_test = mnist_data.get_testsize()
-    print(m_test)
+    m = len(raw_data)
+    m_test = raw_data.get_testsize()
+    print('Test size,', m_test)
     n_class = 10
     test_indices = range(m_test)
-    test_data = data.Subset(mnist_data, test_indices)
-    train_data = data.Subset(mnist_data, range(m_test, m))
+    test_data = data.Subset(raw_data, test_indices)
+    train_data = data.Subset(raw_data, range(m_test, m))
     # saparate into training and validation
     m_train = m -  m_test
     m_train_t = int(m_train/2)
-    print(m_train_t)
+    print('Training_1 size,', m_train_t)
 
     train_t_data = data.Subset(train_data, range(m_train_t))
     train_v_data = data.Subset(train_data, range(m_train_t, m_train))
 
     # get labels for future use
-    test_labels = mnist_data.get_test_label()
-    train_labels = mnist_data.get_train_label()
+    test_labels = raw_data.get_test_label()
+    train_labels = raw_data.get_train_label()
     train_t_labels = train_labels[(range(m_train_t),)]
     train_v_labels = train_labels[(range(m_train_t, m_train),)]
 
@@ -132,75 +173,62 @@ def main():
     test_loader = data.DataLoader(train_v_data,
     	batch_size=args.batch_size, shuffle=False, **kwargs)
     
-
-    model = Net().to(device)
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
-
+    
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
+    print('Training using training_data1, testing on training_data2 to estimate weights.') 
     for epoch in range(1, args.epochs + 1):
         train(args, model, device, train_loader, optimizer, epoch)
     
+    print('Testing on training_data2 to estimate C_yy')
     predictions = test(args, model, device, test_loader)
 
-    # compute C_yy
-    
+    # compute C_yy 
     #predictions = torch.tensor(predictions)
     C_yy = np.zeros((n_class, n_class))
     m_train_v = m_train - m_train_t 
     #print(m_train_v)
-    
     predictions = np.concatenate(predictions)
-    train_v_labels = train_v_labels.numpy()
    
-
     for i in range(n_class):
         for j in range(n_class):
             C_yy[i,j] = float(len(np.where((predictions== i)&(train_v_labels==j))[0]))/m_train_v
 		
 	#print(C_yy)
 	# prediction on x_test to estimate mu_y
+    print('Testing on test data to estimate mu_y')
     test_loader = data.DataLoader(test_data,
     	batch_size=args.batch_size, shuffle=False, **kwargs)
     predictions = test(args, model, device, test_loader)
-
     mu_y = np.zeros(n_class)
     for i in range(n_class):
         mu_y[i] = float(len(np.where(predictions == i)[0]))/m_test
 
-    #print(mu_y)
+    # print(mu_y)
 	# compute weights
-    print(np.linalg.inv(C_yy*10))
     w = np.matmul(np.linalg.inv(C_yy),  mu_y)
-
-    print('w is', w)
+    print('Estimated w is', w)
 
     # compute the true w
     mu_y_train = np.zeros(n_class)
     for i in range(n_class):
         mu_y_train[i] = float(len(np.where(train_v_labels == i)[0]))/m_train_v
-
     mu_y_test = np.zeros(n_class)
     for i in range(n_class):
         mu_y_test[i] = float(len(np.where(test_labels == i)[0]))/m_test
-
     true_w = mu_y_test/mu_y_train
-
-    print('true w is', true_w)
-
+    print('True w is', true_w)
     mse = sum(np.square(true_w - w))/n_class
-
     print('mean square error, ', mse)
 
 	# Learning IW ERM
+    print('Training using full training data with estimated weights, testing on test set.')
     weights = [w[train_labels]][0]
-
     weighted_train = WEIGHTED_DATA(train_data, weights)
-
     train_loader = data.DataLoader(weighted_train,
         batch_size=args.batch_size, shuffle=True, **kwargs)
-
     for epoch in range(1, args.epochs + 1):
-        train(args, model, device, train_loader, optimizer, epoch)
-    
+        train(args, model, device, train_loader, optimizer, epoch)   
+    print('Testing on test set')
     test(args, model, device, test_loader)
 
 

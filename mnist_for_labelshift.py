@@ -110,7 +110,7 @@ class MNIST_SHIFT(data.Dataset):
             num_remain = num_train - num_target
             # even on other labels
             num_i = int(num_remain/9)
-            indices_train = np.empty((0,1))
+            indices_train = np.empty((0,1), dtype = int)
 
             for i in range(10):
                 indices_i = np.where(train_labels == i)[0]
@@ -135,7 +135,7 @@ class MNIST_SHIFT(data.Dataset):
             num_target = len(indices_target)
             prob_max = np.amax(prob)    
             num_train = int(num_target/prob_max)
-            indices_train = np.empty((0,1))
+            indices_train = np.empty((0,1), dtype = int)
             for i in range(10):
                 num_i = int(num_train * prob[i])
                 indices_i = np.where(train_labels == i)[0]
