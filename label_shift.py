@@ -9,7 +9,6 @@ from torchvision import datasets, transforms
 import numpy as np
 from mnist_for_labelshift import MNIST_SHIFT
 from cifar10_for_labelshift import CIFAR10_SHIFT
-from mnist_for_labelshift import WEIGHTED_DATA
 import torchvision
 from torchvision.models import *
 
@@ -22,7 +21,7 @@ class Net(nn.Module):
         self.model = torch.nn.Sequential(
 			torch.nn.Linear(self.D_in, self.H),
 			torch.nn.ReLU(),
-			torch.nn.Linear(self.H, self.H),
+			torch.nn.Linear(self.H, self.D_out),
 			)
 
     def forward(self, x):
@@ -49,16 +48,16 @@ class ConvNet(nn.Module):
         x = self.fc3(x)
         return x
 
-
-
-def train(args, model, device, train_loader, optimizer, epoch):
+def train(args, model, device, train_loader, optimizer, epoch, weight=None):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
-     
-        criterion = nn.CrossEntropyLoss()
+        if weight is None:
+            criterion = nn.CrossEntropyLoss()
+        else:
+            criterion = nn.CrossEntropyLoss(weight.float())
         loss = criterion(output, target)
 
         loss.backward()
@@ -134,7 +133,7 @@ def main():
         D_in = 784
         
     elif args.data_name == 'cifar10':
-        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 2, 0.3, target_label=2,
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 2, 0.6, target_label=2,
             transform=transforms.Compose([
                         transforms.ToTensor(),
                         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
@@ -230,16 +229,15 @@ def main():
     print('\nTraining using full training data with estimated weights, testing on test set.')
     model = Net(D_in, 256, 10).to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
-    weights = [w[train_labels]][0]
-    weighted_train = WEIGHTED_DATA(train_data, weights)
+    w = torch.tensor(w)
     m_validate = int(0.1*m_train)
-    train_loader = data.DataLoader(data.Subset(weighted_train, range(m_validate)),
+    train_loader = data.DataLoader(data.Subset(train_data, range(m_validate)),
         batch_size=args.batch_size, shuffle=True, **kwargs)
     # 10% validation set
-    validate_loader = data.DataLoader(data.Subset(weighted_train, range(m_validate, m_train)),
+    validate_loader = data.DataLoader(data.Subset(train_data, range(m_validate, m_train)),
         batch_size=args.batch_size, shuffle=True, **kwargs)
     for epoch in range(1, args.epochs_training + 1):
-        train(args, model, device, train_loader, optimizer, epoch) 
+        train(args, model, device, train_loader, optimizer, epoch, weight=w) 
         # validation
         test(args, model, device, validate_loader)  
     print('\nTesting on test set')

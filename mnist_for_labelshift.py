@@ -75,7 +75,6 @@ class MNIST_SHIFT(data.Dataset):
         test_indices = indices[0 : m_test]
         train_indices = indices[m_test :]
         test_data = features[(test_indices,)]
-        print(test_data.shape)
         test_labels = labels[(test_indices,)]
 
         train_data = features[(train_indices,)]
@@ -86,10 +85,8 @@ class MNIST_SHIFT(data.Dataset):
                 raise RuntimeError("There should be a target label for the knock one shift.")
             indices_target = np.where(train_labels == target_label)[0]
             num_target = len(indices_target)
-            num_knock = int(num_target * parameter)
-            print(train_data.shape)
+            num_knock = int(num_target * parameter)    
             train_data = np.delete(train_data, indices_target[0:num_knock], 0)
-            print(train_data.shape)
             train_labels = np.delete(train_labels, indices_target[0:num_knock])
             
         elif shift_type == 2:
@@ -255,17 +252,6 @@ class MNIST_SHIFT(data.Dataset):
         fmt_str += '{0}{1}'.format(tmp, self.target_transform.__repr__().replace('\n', '\n' + ' ' * len(tmp)))
         return fmt_str
 
-class WEIGHTED_DATA(data.Dataset):
-    def __init__(self, data, weights):
-        self.dataset = data
-        self.weights = weights
-
-    def __getitem__(self, index):
-        img, label = self.weights[self.dataset[index][1]] * self.dataset[index][0], self.dataset[index][1]
-        return img, label
-
-    def __len__(self):
-        return len(self.dataset)
 
 def get_int(b):
     return int(codecs.encode(b, 'hex'), 16)

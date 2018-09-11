@@ -121,17 +121,16 @@ class CIFAR10_SHIFT(data.Dataset):
         raw_labels = np.asarray(raw_labels)
         # # creat label shift
         indices = np.random.permutation(60000)
-        m_test = 10000
+        m_test = 20000
 
         test_indices = indices[0 : m_test]
         train_indices = indices[m_test :]
         test_data = raw_data[(test_indices,)]
-        print(len(test_data))
         test_labels = raw_labels[(test_indices,)]
 
         train_data = raw_data[(train_indices,)]
-        print(len(train_data))
         train_labels = raw_labels[(train_indices,)]
+        num_train = len(train_data)
 
         if shift_type == 1:
             if target_label == None:
@@ -141,7 +140,6 @@ class CIFAR10_SHIFT(data.Dataset):
             num_knock = int(num_target * parameter)
             train_data = np.delete(train_data, indices_target[0:num_knock], 0)
             train_labels = np.delete(train_labels, indices_target[0:num_knock])
-            num_train = len(train_data)
             
         elif shift_type == 2:
             if target_label == None:
@@ -196,10 +194,35 @@ class CIFAR10_SHIFT(data.Dataset):
             shuffle = np.random.permutation(len(indices_train))[0:sample_size]
             train_data = train_data[(indices_train[shuffle],)]
             train_labels = train_labels[(indices_train[shuffle],)]
+        elif shift_type == 4:
+            alpha = np.ones(10) * parameter
+            prob = np.random.dirichlet(alpha)
+            # use the maximum prob to decide the total number of training samples
+            target_label = np.argmax(prob)
+            print('Dirichlet shift with prob,', prob)
+
+            indices_target = np.where(test_labels == target_label)[0]
+            num_target = len(indices_target)
+            prob_max = np.amax(prob)    
+            m_test = int(num_target/prob_max)
+            indices_test = np.empty((0,1), dtype = int)
+
+            for i in range(10):
+                num_i = int(m_test * prob[i])
+                indices_i = np.where(test_labels == i)[0]
+                indices_i = indices_i[0:num_i] 
+                indices_test = np.append(indices_test, indices_i)
+            sample_size = np.minimum(2*m_test, sample_size)    
+            shuffle = np.random.permutation(len(indices_test))[0:sample_size]
+            test_data = test_data[(indices_test[shuffle],)]
+            test_labels = test_labels[(indices_test[shuffle],)]
+            # train_data = train_data[range(sample_size)]
+            # train_labels = train_labels[range(sample_size)]
+            
         else:
             raise RuntimeError("Invalid shift type.")
 
-        # training and testing has same size
+        #training and testing has same size
         if int(num_train/2) < m_test:
             m_test = int(num_train/2)
             test_data = test_data[range(m_test)]
