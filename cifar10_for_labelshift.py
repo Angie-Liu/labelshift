@@ -121,16 +121,16 @@ class CIFAR10_SHIFT(data.Dataset):
         raw_labels = np.asarray(raw_labels)
         # # creat label shift
         indices = np.random.permutation(60000)
-        m_test = sample_size
+        m_test = 10000
 
         test_indices = indices[0 : m_test]
         train_indices = indices[m_test :]
         test_data = raw_data[(test_indices,)]
-
+        print(len(test_data))
         test_labels = raw_labels[(test_indices,)]
 
         train_data = raw_data[(train_indices,)]
-
+        print(len(train_data))
         train_labels = raw_labels[(train_indices,)]
 
         if shift_type == 1:
@@ -147,11 +147,12 @@ class CIFAR10_SHIFT(data.Dataset):
                 raise RuntimeError("There should be a target label for the tweak one shift.")
             # use the number of target label to decide the total number of the training samples
             
-            if parameter < (1.0-parameter)/9 :
+            if parameter < (1.0-parameter)/9 : 
                 target_label = (target_label + 1)%10
             indices_target = np.where(train_labels == target_label)[0]
             num_target = len(indices_target)    
             num_train = int(num_target/parameter)
+
             #################
             # num_train = sample_size
             # num_target = int(num_train * parameter)

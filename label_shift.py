@@ -100,7 +100,7 @@ def main():
     parser = argparse.ArgumentParser(description='Blackbox Label Shift')
     parser.add_argument('--data-name', type=str, default='mnist', metavar='N',
                         help='dataset name, mnist or cifar10 (default: mnist)')
-    parser.add_argument('--sample-size', type=int, default=20000, metavar='N',
+    parser.add_argument('--sample-size', type=int, default=50000, metavar='N',
                         help='sample size for both training and testing (default: 50000)')
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
@@ -124,7 +124,7 @@ def main():
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
     if args.data_name  == 'mnist':
-        raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 2, 0.2, target_label=2, train=True, download=True,
+        raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 2, 0.1, target_label=2, train=True, download=True,
         	transform=transforms.Compose([
                            transforms.ToTensor(),
                            transforms.Normalize((0.1307,), (0.3081,))
@@ -132,7 +132,7 @@ def main():
         D_in = 784
         model = Net(D_in, 256, 10).to(device)
     elif args.data_name == 'cifar10':
-        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 3, 0.01, target_label=2,
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 2, 0.2, target_label=2,
             transform=transforms.Compose([
                         transforms.ToTensor(),
                         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))

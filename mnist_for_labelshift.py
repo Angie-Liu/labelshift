@@ -70,7 +70,7 @@ class MNIST_SHIFT(data.Dataset):
 
        
         indices = np.random.permutation(60000)
-        m_test = sample_size
+        m_test = 10000
 
         test_indices = indices[0 : m_test]
         train_indices = indices[m_test :]
