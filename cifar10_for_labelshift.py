@@ -62,6 +62,7 @@ class CIFAR10_SHIFT(data.Dataset):
         new parameters:
         sample_size: int, sample size of both training and testing set
         shift_type: int, 1 for knock one shift, 2 for tweak one shift and 3 for dirichlet shift
+                         4 for dirichlet shift on the testing set, training is uniform
         parameter: float in [0, 1], delta for knock one shift, delete target_label by delta
                                     or, rho for tweak one shift, set target_label probability as rho, others even
                                     or, alpha for dirichlet shift
