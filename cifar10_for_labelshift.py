@@ -122,7 +122,7 @@ class CIFAR10_SHIFT(data.Dataset):
         raw_labels = np.asarray(raw_labels)
         # # creat label shift
         indices = np.random.permutation(60000)
-        m_test = 20000
+        m_test = 10000
 
         test_indices = indices[0 : m_test]
         train_indices = indices[m_test :]
@@ -141,6 +141,7 @@ class CIFAR10_SHIFT(data.Dataset):
             num_knock = int(num_target * parameter)
             train_data = np.delete(train_data, indices_target[0:num_knock], 0)
             train_labels = np.delete(train_labels, indices_target[0:num_knock])
+            num_train = len(train_labels)
             
         elif shift_type == 2:
             if target_label == None:
@@ -172,6 +173,7 @@ class CIFAR10_SHIFT(data.Dataset):
             shuffle = np.random.permutation(len(indices_train))[0:sample_size]
             train_data = train_data[(indices_train[shuffle],)]
             train_labels = train_labels[(indices_train[shuffle],)]
+            num_train = len(train_labels)
 
         elif shift_type == 3:
             alpha = np.ones(10) * parameter
@@ -195,6 +197,7 @@ class CIFAR10_SHIFT(data.Dataset):
             shuffle = np.random.permutation(len(indices_train))[0:sample_size]
             train_data = train_data[(indices_train[shuffle],)]
             train_labels = train_labels[(indices_train[shuffle],)]
+            num_train = len(train_labels)
         elif shift_type == 4:
             alpha = np.ones(10) * parameter
             prob = np.random.dirichlet(alpha)
@@ -217,17 +220,50 @@ class CIFAR10_SHIFT(data.Dataset):
             shuffle = np.random.permutation(len(indices_test))[0:sample_size]
             test_data = test_data[(indices_test[shuffle],)]
             test_labels = test_labels[(indices_test[shuffle],)]
+            m_test = len(test_labels)
             # train_data = train_data[range(sample_size)]
             # train_labels = train_labels[range(sample_size)]
+        elif shift_type == 5:
+            if target_label == None:
+                raise RuntimeError("There should be a target label for the tweak one shift.")
+            # use the number of target label to decide the total number of the training samples
+            
+            if parameter < (1.0-parameter)/9 :
+                target_label = (target_label + 1)%10
+            indices_target = np.where(test_labels == target_label)[0]
+            num_target = len(indices_target)    
+            num_test = int(num_target/parameter)
+
+            num_remain = num_test - num_target
+            # even on other labels
+            num_i = int(num_remain/9)
+            indices_test = np.empty((0,1), dtype = int)
+
+            for i in range(10):
+                indices_i = np.where(test_labels == i)[0]
+                if i != target_label:
+                    indices_i = indices_i[0:num_i] 
+                else:
+                    indices_i = indices_i[0:num_target] 
+                indices_test = np.append(indices_test, indices_i)
+            
+            shuffle = np.random.permutation(len(indices_test))[0:sample_size]
+            test_data = test_data[(indices_test[shuffle],)]
+            test_labels = test_labels[(indices_test[shuffle],)]
+            m_test = len(test_labels)
             
         else:
             raise RuntimeError("Invalid shift type.")
 
         #training and testing has same size
-        if int(num_train/2) < m_test:
-            m_test = int(num_train/2)
-            test_data = test_data[range(m_test)]
-            test_labels = test_labels[range(m_test)]
+        if num_train > 2 *sample_size:
+            train_data = train_data[range(2 *sample_size)]
+            train_labels = train_labels[range(2 *sample_size)]
+            
+        if m_test > sample_size:
+            test_data = test_data[range(sample_size)]
+            test_labels = test_labels[range(sample_size)]
+            m_test = len(test_labels)
         features = np.concatenate((test_data, train_data))
         features = features.reshape((-1, 3, 32, 32))
         features = features.transpose((0, 2, 3, 1))  # convert to HWC

@@ -10,7 +10,8 @@ import numpy as np
 from mnist_for_labelshift import MNIST_SHIFT
 from cifar10_for_labelshift import CIFAR10_SHIFT
 import torchvision
-from torchvision.models import *
+from resnet import *
+import cvxpy as cp
 
 class Net(nn.Module):
     def __init__(self, D_in, H, D_out):
@@ -91,7 +92,40 @@ def test(args, model, device, test_loader):
         100. * correct / len(test_loader.dataset)))
     return prediction
 
+def compute_w_inv(C_yy, mu_y):
+    # compute weights
 
+    try:
+        w = np.matmul(np.linalg.inv(C_yy),  mu_y)
+        print('Estimated w is', w)
+        # fix w < 0
+        w[np.where(w < 0)[0]] = 0
+        print('If there is negative w, fix with 0:', w)
+        return w
+    except np.linalg.LinAlgError as err:
+        if 'Singular matrix' in str(err):
+            print('Cannot compute using matrix inverse due to singlar matrix')
+            return np.zeros(mu_y.shape[0])
+        else:
+            raise RuntimeError("Unknown error")
+    
+
+def compute_w_opt(C_yy,mu_y,mu_train_y):
+    n = C_yy.shape[0]
+    theta = cp.Variable(n)
+    b = mu_y - mu_train_y
+    objective = cp.Minimize(cp.pnorm(C_yy*theta - b) + 0.005* cp.pnorm(theta))
+    constraints = [-1 <= theta, theta <= 10]
+    prob = cp.Problem(objective, constraints)
+
+    # The optimal objective value is returned by `prob.solve()`.
+    result = prob.solve()
+    # The optimal value for x is stored in `x.value`.
+    # print(theta.value)
+    w = 1 + theta.value
+    print('Estimated w is', w)
+    #print(constraints[0].dual_value)
+    return w
 
 
 def main():
@@ -105,10 +139,10 @@ def main():
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
-    parser.add_argument('--epochs-estimation', type=int, default=5, metavar='N',
-                        help='number of epochs in weight estimation (default: 5)')
-    parser.add_argument('--epochs-training', type=int, default=20, metavar='N',
-                        help='number of epochs in training (default: 20)')
+    parser.add_argument('--epochs-estimation', type=int, default=10, metavar='N',
+                        help='number of epochs in weight estimation (default: 10)')
+    parser.add_argument('--epochs-training', type=int, default=10, metavar='N',
+                        help='number of epochs in training (default: 10)')
     parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                         help='learning rate (default: 0.01)')
     parser.add_argument('--momentum', type=float, default=0.5, metavar='M',
@@ -125,7 +159,7 @@ def main():
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
     if args.data_name  == 'mnist':
-        raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 2, 0.6, target_label=2, train=True, download=True,
+        raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 5, 0.7, target_label=2, train=True, download=True,
         	transform=transforms.Compose([
                            transforms.ToTensor(),
                            transforms.Normalize((0.1307,), (0.3081,))
@@ -133,13 +167,15 @@ def main():
         D_in = 784
         
     elif args.data_name == 'cifar10':
-        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 4, 0.01, target_label=2,
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 5, 0.7, target_label=2,
             transform=transforms.Compose([
+                        transforms.RandomCrop(32, padding=4),
+                        transforms.RandomHorizontalFlip(),
                         transforms.ToTensor(),
                         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
                         ]), download=True)
         D_in = 3072
-        # model = ConvNet().to(device)
+        #model = VGG('VGG19').to(device)#ConvNet().to(device)
     else:
         raise RuntimeError("Unsupported dataset")
 
@@ -174,6 +210,7 @@ def main():
     	batch_size=args.batch_size, shuffle=False, **kwargs)
     
     model = Net(D_in, 256, 10).to(device)
+    #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     print('\nTraining using training_data1, testing on training_data2 to estimate weights.') 
     for epoch in range(1, args.epochs_estimation + 1):
@@ -193,6 +230,12 @@ def main():
         for j in range(n_class):
             C_yy[i,j] = float(len(np.where((predictions== i)&(train_v_labels==j))[0]))/m_train_v
 		
+    mu_y_train = np.zeros(n_class)
+    for i in range(n_class):
+        mu_y_train[i] = float(len(np.where(predictions == i)[0]))/m_train_v
+
+    print(mu_y_train)
+
 	#print(C_yy)
 	# prediction on x_test to estimate mu_y
     print('\nTesting on test data to estimate mu_y.')
@@ -204,9 +247,9 @@ def main():
         mu_y[i] = float(len(np.where(predictions == i)[0]))/m_test
 
     # print(mu_y)
-	# compute weights
-    w = np.matmul(np.linalg.inv(C_yy),  mu_y)
-    print('Estimated w is', w)
+
+    w1 = compute_w_inv(C_yy, mu_y)
+    w2 = compute_w_opt(C_yy, mu_y, mu_y_train)
 
     # compute the true w
     mu_y_train = np.zeros(n_class)
@@ -217,17 +260,17 @@ def main():
         mu_y_test[i] = float(len(np.where(test_labels == i)[0]))/m_test
     true_w = mu_y_test/mu_y_train
     print('True w is', true_w)
-    mse = sum(np.square(true_w - w))/n_class
-    print('Mean square error, ', mse)
+    mse1 = sum(np.square(true_w - w1))/n_class
+    mse2 = sum(np.square(true_w - w2))/n_class
+    print('Mean square error, ', mse1)
+    print('Mean square error, ', mse2)
 
-    # fix w < 0
-    w[np.where(w < 0)[0]] = 0
-    print('If there is negative w, fix with 0:', w)
-    
+    w = w2
 
 	# Learning IW ERM
     print('\nTraining using full training data with estimated weights, testing on test set.')
     model = Net(D_in, 256, 10).to(device)
+    #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     w = torch.tensor(w)
     m_validate = int(0.1*m_train)
@@ -246,6 +289,7 @@ def main():
     # Re-train unweighted ERM using full training data, to ensure fair comparison
     print('\nTraining using full training data (unweighted), testing on test set.')
     model = Net(D_in, 256, 10).to(device)
+    #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     validate_loader = data.DataLoader(data.Subset(train_data, range(m_validate)),
         batch_size=args.batch_size, shuffle=True, **kwargs)
