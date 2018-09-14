@@ -58,7 +58,7 @@ def train(args, model, device, train_loader, optimizer, epoch, weight=None):
         if weight is None:
             criterion = nn.CrossEntropyLoss()
         else:
-            criterion = nn.CrossEntropyLoss(weight.float())
+            criterion = nn.CrossEntropyLoss(weight)
         loss = criterion(output, target)
 
         loss.backward()
@@ -279,6 +279,12 @@ def main():
     # 10% validation set
     train_loader = data.DataLoader(data.Subset(train_data, range(m_validate, m_train)),
         batch_size=args.batch_size, shuffle=True, **kwargs)
+
+    if use_cuda:
+        w = w.cuda().float()
+    else:
+        w = w.float()
+
     for epoch in range(1, args.epochs_training + 1):
         train(args, model, device, train_loader, optimizer, epoch, weight=w) 
         # validation
