@@ -20,13 +20,13 @@ class Net(nn.Module):
         self.H = H
         self.D_out = D_out
         self.model = torch.nn.Sequential(
-			torch.nn.Linear(self.D_in, self.H),
-			torch.nn.ReLU(),
-			torch.nn.Linear(self.H, self.D_out),
-			)
+            torch.nn.Linear(self.D_in, self.H),
+            torch.nn.ReLU(),
+            torch.nn.Linear(self.H, self.D_out),
+            )
 
     def forward(self, x):
-    	x = x.view(-1, self.D_in)
+        x = x.view(-1, self.D_in)
         x = self.model(x)
         return x
 
@@ -160,14 +160,14 @@ def main():
 
     if args.data_name  == 'mnist':
         raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 5, 0.7, target_label=2, train=True, download=True,
-        	transform=transforms.Compose([
+            transform=transforms.Compose([
                            transforms.ToTensor(),
                            transforms.Normalize((0.1307,), (0.3081,))
                            ]))
         D_in = 784
         
     elif args.data_name == 'cifar10':
-        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 5, 0.7, target_label=2,
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 5, 0.3, target_label=2,
             transform=transforms.Compose([
                         transforms.RandomCrop(32, padding=4),
                         transforms.RandomHorizontalFlip(),
@@ -207,7 +207,7 @@ def main():
         batch_size=args.batch_size, shuffle=True, **kwargs)
 
     test_loader = data.DataLoader(train_v_data,
-    	batch_size=args.batch_size, shuffle=False, **kwargs)
+        batch_size=args.batch_size, shuffle=False, **kwargs)
     
     model = Net(D_in, 256, 10).to(device)
     #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
@@ -229,18 +229,18 @@ def main():
     for i in range(n_class):
         for j in range(n_class):
             C_yy[i,j] = float(len(np.where((predictions== i)&(train_v_labels==j))[0]))/m_train_v
-		
+        
     mu_y_train = np.zeros(n_class)
     for i in range(n_class):
         mu_y_train[i] = float(len(np.where(predictions == i)[0]))/m_train_v
 
     print(mu_y_train)
 
-	#print(C_yy)
-	# prediction on x_test to estimate mu_y
+    #print(C_yy)
+    # prediction on x_test to estimate mu_y
     print('\nTesting on test data to estimate mu_y.')
     test_loader = data.DataLoader(test_data,
-    	batch_size=args.batch_size, shuffle=False, **kwargs)
+        batch_size=args.batch_size, shuffle=False, **kwargs)
     predictions = test(args, model, device, test_loader)
     mu_y = np.zeros(n_class)
     for i in range(n_class):
@@ -267,7 +267,7 @@ def main():
 
     w = w2
 
-	# Learning IW ERM
+    # Learning IW ERM
     print('\nTraining using full training data with estimated weights, testing on test set.')
     model = Net(D_in, 256, 10).to(device)
     #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
