@@ -22,13 +22,13 @@ class Net(nn.Module):
         self.H = H
         self.D_out = D_out
         self.model = torch.nn.Sequential(
-			torch.nn.Linear(self.D_in, self.H),
-			torch.nn.ReLU(),
-			torch.nn.Linear(self.H, self.D_out),
-			)
+            torch.nn.Linear(self.D_in, self.H),
+            torch.nn.ReLU(),
+            torch.nn.Linear(self.H, self.D_out),
+            )
 
     def forward(self, x):
-    	x = x.view(-1, self.D_in)
+        x = x.view(-1, self.D_in)
         x = self.model(x)
         return x
 
@@ -108,18 +108,18 @@ def compute_w_inv(C_yy, mu_y):
     except np.linalg.LinAlgError as err:
         if 'Singular matrix' in str(err):
             print('Cannot compute using matrix inverse due to singlar matrix')
-            return np.zeros(mu_y.shape[0])*1000
+            return np.ones(mu_y.shape[0])*1000
         else:
             raise RuntimeError("Unknown error")
     
   
 
-def compute_w_opt(C_yy,mu_y,mu_train_y):
+def compute_w_opt(C_yy,mu_y,mu_train_y, rho):
     n = C_yy.shape[0]
     theta = cp.Variable(n)
     b = mu_y - mu_train_y
-    objective = cp.Minimize(cp.pnorm(C_yy*theta - b) + 0.005* cp.pnorm(theta))
-    constraints = [-1 <= theta, theta <= 10]
+    objective = cp.Minimize(cp.pnorm(C_yy*theta - b) + rho* cp.pnorm(theta))
+    constraints = [-1 <= theta]
     prob = cp.Problem(objective, constraints)
 
     # The optimal objective value is returned by `prob.solve()`.
@@ -130,6 +130,10 @@ def compute_w_opt(C_yy,mu_y,mu_train_y):
     print('Estimated w is', w)
     #print(constraints[0].dual_value)
     return w
+
+def compute_3deltaC(n_class, n_train, delta):
+    rho = 3*(2*np.log(2*n_class/delta)/(3*n_train) + np.sqrt(2*np.log(2*n_class/delta)/n_train))
+    return rho 
 
 
 def main():
@@ -165,21 +169,19 @@ def main():
     mse1_vec = np.ones([args.iterations, 8])
     mse2_vec = np.ones([args.iterations, 8])
 
-    print(args.iterations)
-
     for k in range(args.iterations):
         for l in range(8):
 
             if args.data_name  == 'mnist':
                 raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 2, 0.4*(l+1), target_label=2, train=True, download=True,
-                	transform=transforms.Compose([
+                    transform=transforms.Compose([
                                    transforms.ToTensor(),
                                    transforms.Normalize((0.1307,), (0.3081,))
                                    ]))
                 D_in = 784
                 
             elif args.data_name == 'cifar10':
-                raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 2, 0.1*(l+1), target_label=2,
+                raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 2, 0.2*(l+1), target_label=2,
                     transform=transforms.Compose([
                                 transforms.RandomCrop(32, padding=4),
                                 transforms.RandomHorizontalFlip(),
@@ -201,25 +203,25 @@ def main():
             train_data = data.Subset(raw_data, range(m_test, m))
             # saparate into training and validation
             m_train = m -  m_test
-            m_train_t = int(m_train/2)
-            print('Training_1 size,', m_train_t)
+            # m_train_t = int(m_train/2)
+            print('Training size,', m_train)
 
-            train_t_data = data.Subset(train_data, range(m_train_t))
-            train_v_data = data.Subset(train_data, range(m_train_t, m_train))
+            # train_t_data = data.Subset(train_data, range(m_train_t))
+            # train_v_data = data.Subset(train_data, range(m_train_t, m_train))
 
             # get labels for future use
             test_labels = raw_data.get_test_label()
             train_labels = raw_data.get_train_label()
-            train_t_labels = train_labels[(range(m_train_t),)]
-            train_v_labels = train_labels[(range(m_train_t, m_train),)]
+            # train_t_labels = train_labels[(range(m_train_t),)]
+            # train_v_labels = train_labels[(range(m_train_t, m_train),)]
 
             # finish data preprocessing
             # estimate weights using training and validation set
-            train_loader = data.DataLoader(train_t_data,
+            train_loader = data.DataLoader(train_data,
                 batch_size=args.batch_size, shuffle=True, **kwargs)
 
-            test_loader = data.DataLoader(train_v_data,
-            	batch_size=args.batch_size, shuffle=False, **kwargs)
+            test_loader = data.DataLoader(train_data,
+                batch_size=args.batch_size, shuffle=False, **kwargs)
             
             model = Net(D_in, 256, 10).to(device)
             #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
@@ -234,25 +236,25 @@ def main():
             # compute C_yy 
             #predictions = torch.tensor(predictions)
             C_yy = np.zeros((n_class, n_class))
-            m_train_v = m_train - m_train_t 
+            # m_train_v = m_train - m_train_t 
             #print(m_train_v)
             predictions = np.concatenate(predictions)
            
             for i in range(n_class):
                 for j in range(n_class):
-                    C_yy[i,j] = float(len(np.where((predictions== i)&(train_v_labels==j))[0]))/m_train_v
-        		
+                    C_yy[i,j] = float(len(np.where((predictions== i)&(train_labels==j))[0]))/m_train
+        
             mu_y_train = np.zeros(n_class)
             for i in range(n_class):
-                mu_y_train[i] = float(len(np.where(predictions == i)[0]))/m_train_v
+                mu_y_train[i] = float(len(np.where(predictions == i)[0]))/m_train
 
             # print(mu_y_train)
 
-        	#print(C_yy)
-        	# prediction on x_test to estimate mu_y
+            #print(C_yy)
+            # prediction on x_test to estimate mu_y
             print('\nTesting on test data to estimate mu_y.')
             test_loader = data.DataLoader(test_data,
-            	batch_size=args.batch_size, shuffle=False, **kwargs)
+                batch_size=args.batch_size, shuffle=False, **kwargs)
             predictions = test(args, model, device, test_loader)
             mu_y = np.zeros(n_class)
             for i in range(n_class):
@@ -261,12 +263,14 @@ def main():
             # print(mu_y)
 
             w1 = compute_w_inv(C_yy, mu_y)
-            w2 = compute_w_opt(C_yy, mu_y, mu_y_train)
+            alpha = 0.01
+            rho = compute_3deltaC(n_class, m_train, 0.05)
+            w2 = compute_w_opt(C_yy, mu_y, mu_y_train, alpha * rho)
 
             # compute the true w
             mu_y_train = np.zeros(n_class)
             for i in range(n_class):
-                mu_y_train[i] = float(len(np.where(train_v_labels == i)[0]))/m_train_v
+                mu_y_train[i] = float(len(np.where(train_labels == i)[0]))/m_train
             mu_y_test = np.zeros(n_class)
             for i in range(n_class):
                 mu_y_test[i] = float(len(np.where(test_labels == i)[0]))/m_test

@@ -122,7 +122,10 @@ class CIFAR10_SHIFT(data.Dataset):
         raw_labels = np.asarray(raw_labels)
         # # creat label shift
         indices = np.random.permutation(60000)
-        m_test = 10000
+        m_test = sample_size
+
+        if sample_size > 30000:
+            raise RuntimeError("Supported setting is sample size smaller than 30000.")
 
         test_indices = indices[0 : m_test]
         train_indices = indices[m_test :]
@@ -215,8 +218,7 @@ class CIFAR10_SHIFT(data.Dataset):
                 num_i = int(m_test * prob[i])
                 indices_i = np.where(test_labels == i)[0]
                 indices_i = indices_i[0:num_i] 
-                indices_test = np.append(indices_test, indices_i)
-            sample_size = np.minimum(2*m_test, sample_size)    
+                indices_test = np.append(indices_test, indices_i)   
             shuffle = np.random.permutation(len(indices_test))[0:sample_size]
             test_data = test_data[(indices_test[shuffle],)]
             test_labels = test_labels[(indices_test[shuffle],)]
@@ -256,9 +258,9 @@ class CIFAR10_SHIFT(data.Dataset):
             raise RuntimeError("Invalid shift type.")
 
         #training and testing has same size
-        if num_train > 2 *sample_size:
-            train_data = train_data[range(2 *sample_size)]
-            train_labels = train_labels[range(2 *sample_size)]
+        if num_train > sample_size:
+            train_data = train_data[range(sample_size)]
+            train_labels = train_labels[range(sample_size)]
             
         if m_test > sample_size:
             test_data = test_data[range(sample_size)]
