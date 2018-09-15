@@ -107,8 +107,9 @@ def compute_w_inv(C_yy, mu_y):
         return w
     except np.linalg.LinAlgError as err:
         if 'Singular matrix' in str(err):
-            print('Cannot compute using matrix inverse due to singlar matrix')
-            return np.ones(mu_y.shape[0])*1000
+            print('Cannot compute using matrix inverse due to singlar matrix, using psudo inverse')
+            w = np.matmul(np.linalg.pinv(C_yy), mu_y)
+            return w
         else:
             raise RuntimeError("Unknown error")
     
