@@ -120,7 +120,7 @@ class MNIST_SHIFT(data.Dataset):
                     indices_i = indices_i[0:num_target] 
                 indices_train = np.append(indices_train, indices_i)
             
-            shuffle = np.random.permutation(len(indices_train))[0:sample_size]
+            shuffle = np.random.permutation(len(indices_train))
             train_data = train_data[(indices_train[shuffle],)]
             train_labels = train_labels[(indices_train[shuffle],)]
             num_train = len(train_labels)
@@ -143,7 +143,7 @@ class MNIST_SHIFT(data.Dataset):
                 indices_i = indices_i[0:num_i] 
                 indices_train = np.append(indices_train, indices_i)
 
-            shuffle = np.random.permutation(len(indices_train))[0:sample_size]
+            shuffle = np.random.permutation(len(indices_train))
             train_data = train_data[(indices_train[shuffle],)]
             train_labels = train_labels[(indices_train[shuffle],)]
             num_train = len(train_labels)
@@ -166,7 +166,7 @@ class MNIST_SHIFT(data.Dataset):
                 indices_i = np.where(test_labels == i)[0]
                 indices_i = indices_i[0:num_i] 
                 indices_test = np.append(indices_test, indices_i)   
-            shuffle = np.random.permutation(len(indices_test))[0:sample_size]
+            shuffle = np.random.permutation(len(indices_test))
             test_data = test_data[(indices_test[shuffle],)]
             test_labels = test_labels[(indices_test[shuffle],)]
             m_test = len(test_labels)
@@ -195,7 +195,7 @@ class MNIST_SHIFT(data.Dataset):
                     indices_i = indices_i[0:num_target] 
                 indices_test = np.append(indices_test, indices_i)
             
-            shuffle = np.random.permutation(len(indices_test))[0:sample_size]
+            shuffle = np.random.permutation(len(indices_test))
             test_data = test_data[(indices_test[shuffle],)]
             test_labels = test_labels[(indices_test[shuffle],)]
             m_test = len(test_labels)

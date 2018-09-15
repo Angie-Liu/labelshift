@@ -104,8 +104,9 @@ def compute_w_inv(C_yy, mu_y):
         return w
     except np.linalg.LinAlgError as err:
         if 'Singular matrix' in str(err):
-            print('Cannot compute using matrix inverse due to singlar matrix')
-            return np.ones(mu_y.shape[0]) * 1000
+            print('Cannot compute using matrix inverse due to singlar matrix, using psudo inverse')
+            w = np.matmul(np.linalg.pinv(C_yy), mu_y)
+            return w
         else:
             raise RuntimeError("Unknown error")
     
@@ -182,7 +183,7 @@ def main():
         D_in = 784
         
     elif args.data_name == 'cifar10':
-        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 2, 0.5, target_label=2,
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 2, 0.3, target_label=2,
             transform=transforms.Compose([
                         transforms.RandomCrop(32, padding=4),
                         transforms.RandomHorizontalFlip(),
@@ -244,9 +245,9 @@ def main():
         for j in range(n_class):
             C_yy[i,j] = float(len(np.where((predictions== i)&(train_labels==j))[0]))/m_train
         
-    mu_y_train = np.zeros(n_class)
+    mu_y_train_hat = np.zeros(n_class)
     for i in range(n_class):
-        mu_y_train[i] = float(len(np.where(predictions == i)[0]))/m_train
+        mu_y_train_hat[i] = float(len(np.where(predictions == i)[0]))/m_train
 
     # print(mu_y_train)
     # print(C_yy)
@@ -275,10 +276,11 @@ def main():
     mse1 = np.sum(np.square(true_w - w1))/n_class
 
     rho = compute_3deltaC(n_class, m_train, 0.05)
-    #alpha = choose_alpha(n_class, C_yy, mu_y, mu_y_train, rho, true_w)
-    alpha = 0.01
-    w2 = compute_w_opt(C_yy, mu_y, mu_y_train, alpha * rho)
-    mse2 = np.sum(np.square(true_w - w2), 1)/n_class
+    #lpha = choose_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho, true_w)
+    alpha = 0.001
+    w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
+    mse2 = np.sum(np.square(true_w - w2))/n_class
+
     print('Mean square error, ', mse1)
     print('Mean square error, ', mse2)
 

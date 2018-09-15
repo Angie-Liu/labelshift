@@ -181,7 +181,7 @@ def main():
                 D_in = 784
                 
             elif args.data_name == 'cifar10':
-                raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 2, 0.2*(l+1), target_label=2,
+                raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 2, 0.1*(l+1), target_label=2,
                     transform=transforms.Compose([
                                 transforms.RandomCrop(32, padding=4),
                                 transforms.RandomHorizontalFlip(),
@@ -244,9 +244,9 @@ def main():
                 for j in range(n_class):
                     C_yy[i,j] = float(len(np.where((predictions== i)&(train_labels==j))[0]))/m_train
         
-            mu_y_train = np.zeros(n_class)
+            mu_y_train_hat = np.zeros(n_class)
             for i in range(n_class):
-                mu_y_train[i] = float(len(np.where(predictions == i)[0]))/m_train
+                mu_y_train_hat[i] = float(len(np.where(predictions == i)[0]))/m_train
 
             # print(mu_y_train)
 
@@ -265,7 +265,7 @@ def main():
             w1 = compute_w_inv(C_yy, mu_y)
             alpha = 0.01
             rho = compute_3deltaC(n_class, m_train, 0.05)
-            w2 = compute_w_opt(C_yy, mu_y, mu_y_train, alpha * rho)
+            w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
 
             # compute the true w
             mu_y_train = np.zeros(n_class)
