@@ -85,7 +85,7 @@ def test(args, model, device, test_loader):
             pred = output.max(1, keepdim=True)[1] # get the index of the max log-probability
 
             correct += pred.eq(target.view_as(pred)).sum().item()
-            pred = pred.numpy()
+            pred = pred.cpu().numpy()
             prediction = np.concatenate((prediction, pred))
 
     test_loss /= len(test_loader.dataset)
