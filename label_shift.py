@@ -106,6 +106,7 @@ def compute_w_inv(C_yy, mu_y):
         if 'Singular matrix' in str(err):
             print('Cannot compute using matrix inverse due to singlar matrix, using psudo inverse')
             w = np.matmul(np.linalg.pinv(C_yy), mu_y)
+            w[np.where(w < 0)[0]] = 0
             return w
         else:
             raise RuntimeError("Unknown error")
@@ -183,7 +184,7 @@ def main():
         D_in = 784
         
     elif args.data_name == 'cifar10':
-        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 2, 0.3, target_label=2,
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 3, 1.6, target_label=2,
             transform=transforms.Compose([
                         transforms.RandomCrop(32, padding=4),
                         transforms.RandomHorizontalFlip(),
@@ -276,7 +277,7 @@ def main():
     mse1 = np.sum(np.square(true_w - w1))/n_class
 
     rho = compute_3deltaC(n_class, m_train, 0.05)
-    #lpha = choose_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho, true_w)
+    #alpha = choose_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho, true_w)
     alpha = 0.001
     w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
     mse2 = np.sum(np.square(true_w - w2))/n_class
@@ -288,8 +289,8 @@ def main():
 
     # Learning IW ERM
     print('\nTraining using full training data with estimated weights, testing on test set.')
-    model = Net(D_in, 256, 10).to(device)
-    #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
+    # model = Net(D_in, 256, 10).to(device)
+    model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     w = torch.tensor(w)
     m_validate = int(0.1*m_train)
@@ -307,24 +308,42 @@ def main():
     for epoch in range(1, args.epochs_training + 1):
         train(args, model, device, train_loader, optimizer, epoch, weight=w) 
         # validation
-        test(args, model, device, validate_loader)  
+        # test(args, model, device, validate_loader)  
     print('\nTesting on test set')
     test(args, model, device, test_loader)
 
+    # Compare with using w1
+    w = torch.tensor(w1)
+    if use_cuda:
+        w = w.cuda().float()
+    else:
+        w = w.float()
+    print('\nComparing with using inverse in weight estimation, testing on test set.')
+    # model = Net(D_in, 256, 10).to(device)
+    model = ResNet18(**kwargs).to(device)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
+    for epoch in range(1, args.epochs_training + 1):
+        train(args, model, device, train_loader, optimizer, epoch, weight=w) 
+        # validation
+        # test(args, model, device, validate_loader)  
+    print('\nTesting on test set')
+    test(args, model, device, test_loader)
+
+
     # Re-train unweighted ERM using full training data, to ensure fair comparison
     print('\nTraining using full training data (unweighted), testing on test set.')
-    model = Net(D_in, 256, 10).to(device)
-    #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
+    # model = Net(D_in, 256, 10).to(device)
+    model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
-    validate_loader = data.DataLoader(data.Subset(train_data, range(m_validate)),
-        batch_size=args.batch_size, shuffle=True, **kwargs)
-    # 10% validation set
-    train_loader = data.DataLoader(data.Subset(train_data, range(m_validate, m_train)),
-        batch_size=args.batch_size, shuffle=True, **kwargs)
+    # validate_loader = data.DataLoader(data.Subset(train_data, range(m_validate)),
+    #     batch_size=args.batch_size, shuffle=True, **kwargs)
+    # # 10% validation set
+    # train_loader = data.DataLoader(data.Subset(train_data, range(m_validate, m_train)),
+    #     batch_size=args.batch_size, shuffle=True, **kwargs)
     for epoch in range(1, args.epochs_training + 1):
         train(args, model, device, train_loader, optimizer, epoch)
         # validation
-        test(args, model, device, validate_loader)     
+        # test(args, model, device, validate_loader)     
     print('\nTesting on test set')
     test_loader = data.DataLoader(test_data,
         batch_size=args.batch_size, shuffle=False, **kwargs)
