@@ -317,7 +317,7 @@ def main():
         # validation
         _, _, loss = test(args, model, device, validate_loader, weight=w)
         # save checkpoint
-        if  loss < best_loss and epochs > 50:
+        if  loss < best_loss and epoch > 50:
             print('saving model')
             state = {
                 'model': model.state_dict(),
@@ -353,7 +353,7 @@ def main():
         # validation
         _, _, loss = test(args, model, device, validate_loader, weight=w)
         # save checkpoint
-        if  loss < best_loss and epochs > 50:
+        if  loss < best_loss and epoch > 50:
             print('saving model')
             state = {
                 'model': model.state_dict(),
@@ -388,7 +388,7 @@ def main():
         # validation
         _, _, loss = test(args, model, device, validate_loader, weight=w)
         # save checkpoint
-        if  loss < best_loss and epochs > 50:
+        if  loss < best_loss and epoch > 50:
             print('saving model')
             state = {
                 'model': model.state_dict(),
@@ -424,7 +424,7 @@ def main():
         # validation
         _, _, loss = test(args, model, device, validate_loader) 
         # save checkpoint
-        if  loss < best_loss and epochs > 50:
+        if  loss < best_loss and epoch > 50:
             print('saving model')
             state = {
                 'model': model.state_dict(),
