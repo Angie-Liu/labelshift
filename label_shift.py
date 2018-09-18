@@ -189,7 +189,7 @@ def main():
         D_in = 784
         
     elif args.data_name == 'cifar10':
-        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 3, 1.6, target_label=2,
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 3, 6, target_label=2,
             transform=transforms.Compose([
                         transforms.RandomCrop(32, padding=4),
                         transforms.RandomHorizontalFlip(),
@@ -231,8 +231,8 @@ def main():
     test_loader = data.DataLoader(train_data,
         batch_size=args.batch_size, shuffle=False, **kwargs)
     
-    model = Net(D_in, 256, 10).to(device)
-    #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
+    # model = Net(D_in, 256, 10).to(device)
+    model = ResNet18().to(device)#ConvNet().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     print('\nTraining using training_data1, testing on training_data2 to estimate weights.') 
     for epoch in range(1, args.epochs_estimation + 1):
@@ -294,8 +294,8 @@ def main():
 
     # Learning IW ERM
     print('\nTraining using full training data with estimated weights, testing on test set.')
-    model = Net(D_in, 256, 10).to(device)
-    # model = ResNet18().to(device)#ConvNet().to(device)
+    # model = Net(D_in, 256, 10).to(device)
+    model = ResNet18().to(device)#ConvNet().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     w = torch.tensor(w)
     m_validate = int(0.1*m_train)
@@ -326,6 +326,24 @@ def main():
     else:
         w = w.float()
     print('\nComparing with using inverse in weight estimation, testing on test set.')
+    # model = Net(D_in, 256, 10).to(device)
+    model = ResNet18().to(device)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
+    for epoch in range(1, args.epochs_training + 1):
+        train(args, model, device, train_loader, optimizer, epoch, weight=w) 
+        # validation
+        test(args, model, device, validate_loader, weight=w)  
+    print('\nTesting on test set')
+    predictions, acc = test(args, model, device, test_loader)
+    f1 = f1_score(test_labels, predictions, average='micro')  
+    print('F1-score:', f1)
+
+    w = torch.tensor(true_w)
+    if use_cuda:
+        w = w.cuda().float()
+    else:
+        w = w.float()
+    print('\nComparing with using true weight, testing on test set.')
     model = Net(D_in, 256, 10).to(device)
     # model = ResNet18().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
@@ -339,11 +357,10 @@ def main():
     print('F1-score:', f1)
 
 
-
     # Re-train unweighted ERM using full training data, to ensure fair comparison
     print('\nTraining using full training data (unweighted), testing on test set.')
-    model = Net(D_in, 256, 10).to(device)
-    # model = ResNet18().to(device)#ConvNet().to(device)
+    # model = Net(D_in, 256, 10).to(device)
+    model = ResNet18().to(device)#ConvNet().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     # validate_loader = data.DataLoader(data.Subset(train_data, range(m_validate)),
     #     batch_size=args.batch_size, shuffle=True, **kwargs)
