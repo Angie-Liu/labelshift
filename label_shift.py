@@ -12,6 +12,7 @@ from cifar10_for_labelshift import CIFAR10_SHIFT
 import torchvision
 from resnet import *
 import cvxpy as cp
+from sklearn.metrics import f1_score
 
 class Net(nn.Module):
     def __init__(self, D_in, H, D_out):
@@ -68,7 +69,7 @@ def train(args, model, device, train_loader, optimizer, epoch, weight=None):
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                 100. * batch_idx / len(train_loader), loss.item()))
 
-def test(args, model, device, test_loader):
+def test(args, model, device, test_loader, weight=None):
     model.eval()
     test_loss = 0
     correct = 0
@@ -77,7 +78,11 @@ def test(args, model, device, test_loader):
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            criterion = nn.CrossEntropyLoss(reduction='sum')
+            if weight is None:
+                criterion = nn.CrossEntropyLoss(reduction='sum')
+            else:
+                criterion = nn.CrossEntropyLoss(weight, reduction='sum')
+
             loss = criterion(output, target)
             test_loss += loss.item()# sum up batch loss
             pred = output.max(1, keepdim=True)[1] # get the index of the max log-probability
@@ -90,7 +95,7 @@ def test(args, model, device, test_loader):
     print('Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
-    return prediction
+    return prediction, 100. * correct / len(test_loader.dataset)
 
 def compute_w_inv(C_yy, mu_y):
     # compute weights
@@ -234,7 +239,7 @@ def main():
         train(args, model, device, train_loader, optimizer, epoch)
     
     print('\nTesting on training_data2 to estimate C_yy.')
-    predictions = test(args, model, device, test_loader)
+    predictions, acc = test(args, model, device, test_loader)
 
     # compute C_yy 
     #predictions = torch.tensor(predictions)
@@ -256,7 +261,7 @@ def main():
     print('\nTesting on test data to estimate mu_y.')
     test_loader = data.DataLoader(test_data,
         batch_size=args.batch_size, shuffle=False, **kwargs)
-    predictions = test(args, model, device, test_loader)
+    predictions, acc = test(args, model, device, test_loader)
     mu_y = np.zeros(n_class)
     for i in range(n_class):
         mu_y[i] = float(len(np.where(predictions == i)[0]))/m_test
@@ -289,8 +294,8 @@ def main():
 
     # Learning IW ERM
     print('\nTraining using full training data with estimated weights, testing on test set.')
-    # model = Net(D_in, 256, 10).to(device)
-    model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
+    model = Net(D_in, 256, 10).to(device)
+    # model = ResNet18().to(device)#ConvNet().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     w = torch.tensor(w)
     m_validate = int(0.1*m_train)
@@ -308,9 +313,11 @@ def main():
     for epoch in range(1, args.epochs_training + 1):
         train(args, model, device, train_loader, optimizer, epoch, weight=w) 
         # validation
-        # test(args, model, device, validate_loader)  
+        test(args, model, device, validate_loader, weight=w)  
     print('\nTesting on test set')
-    test(args, model, device, test_loader)
+    predictions, acc = test(args, model, device, test_loader)
+    f1 = f1_score(test_labels, predictions, average='micro')  
+    print('F1-score:', f1)
 
     # Compare with using w1
     w = torch.tensor(w1)
@@ -319,21 +326,24 @@ def main():
     else:
         w = w.float()
     print('\nComparing with using inverse in weight estimation, testing on test set.')
-    # model = Net(D_in, 256, 10).to(device)
-    model = ResNet18(**kwargs).to(device)
+    model = Net(D_in, 256, 10).to(device)
+    # model = ResNet18().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     for epoch in range(1, args.epochs_training + 1):
         train(args, model, device, train_loader, optimizer, epoch, weight=w) 
         # validation
-        # test(args, model, device, validate_loader)  
+        test(args, model, device, validate_loader, weight=w)  
     print('\nTesting on test set')
-    test(args, model, device, test_loader)
+    predictions, acc = test(args, model, device, test_loader)
+    f1 = f1_score(test_labels, predictions, average='micro')  
+    print('F1-score:', f1)
+
 
 
     # Re-train unweighted ERM using full training data, to ensure fair comparison
     print('\nTraining using full training data (unweighted), testing on test set.')
-    # model = Net(D_in, 256, 10).to(device)
-    model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
+    model = Net(D_in, 256, 10).to(device)
+    # model = ResNet18().to(device)#ConvNet().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     # validate_loader = data.DataLoader(data.Subset(train_data, range(m_validate)),
     #     batch_size=args.batch_size, shuffle=True, **kwargs)
@@ -343,11 +353,13 @@ def main():
     for epoch in range(1, args.epochs_training + 1):
         train(args, model, device, train_loader, optimizer, epoch)
         # validation
-        # test(args, model, device, validate_loader)     
+        test(args, model, device, validate_loader)     
     print('\nTesting on test set')
     test_loader = data.DataLoader(test_data,
         batch_size=args.batch_size, shuffle=False, **kwargs)
-    test(args, model, device, test_loader)
+    predictions, acc = test(args, model, device, test_loader)
+    f1 = f1_score(test_labels, predictions, average='micro')  
+    print('F1-score:', f1)
 
 
 
