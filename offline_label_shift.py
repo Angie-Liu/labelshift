@@ -304,8 +304,8 @@ def main():
 
             # Learning IW ERM
             print('\nTraining using full training data with estimated weights, testing on test set.')
-            model = Net(D_in, 256, 10).to(device)
-            # model = ResNet18().to(device)#ConvNet().to(device)
+            # model = Net(D_in, 256, 10).to(device)
+            model = ResNet18().to(device)#ConvNet().to(device)
             optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
             w = torch.tensor(w)
             m_validate = int(0.1*m_train)
@@ -356,8 +356,8 @@ def main():
 
                 best_loss = 10
                 print('\nComparing with using inverse in weight estimation, testing on test set.')
-                model = Net(D_in, 256, 10).to(device)
-                # model = ResNet18().to(device)
+                # model = Net(D_in, 256, 10).to(device)
+                model = ResNet18().to(device)
                 optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
                 for epoch in range(1, args.epochs_training + 1):
                     train(args, model, device, train_loader, optimizer, epoch, weight=w)  
@@ -392,9 +392,9 @@ def main():
             else:
                 w = w.float()
             print('\nComparing with using true weight, testing on test set.')
-            model = Net(D_in, 256, 10).to(device)
+            # model = Net(D_in, 256, 10).to(device)
             best_loss = 10
-            # model = ResNet18().to(device)
+            model = ResNet18().to(device)
             optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
             for epoch in range(1, args.epochs_training + 1):
                 train(args, model, device, train_loader, optimizer, epoch, weight=w) 
@@ -425,8 +425,8 @@ def main():
             # Re-train unweighted ERM using full training data, to ensure fair comparison
             print('\nTraining using full training data (unweighted), testing on test set.')
             best_loss = 10
-            model = Net(D_in, 256, 10).to(device)
-            # model = ResNet18().to(device)#ConvNet().to(device)
+            # model = Net(D_in, 256, 10).to(device)
+            model = ResNet18().to(device)#ConvNet().to(device)
             optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
             for epoch in range(1, args.epochs_training + 1):
                 train(args, model, device, train_loader, optimizer, epoch)
