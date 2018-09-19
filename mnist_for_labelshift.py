@@ -70,7 +70,8 @@ class MNIST_SHIFT(data.Dataset):
             data_file = self.test_file
         features, labels = torch.load(os.path.join(self.root, self.processed_folder, data_file))
 
-       
+        features = features.numpy()
+        labels = labels.numpy()
         indices = np.random.permutation(60000)
         m_test = sample_size
 
