@@ -179,7 +179,7 @@ def main():
 
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    kwargs = {'num_workers': 3, 'pin_memory': True} if use_cuda else {}
+    kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
     if args.data_name  == 'mnist':
         raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 5, 0.7, target_label=2, train=True, download=True,
@@ -295,8 +295,8 @@ def main():
 
     # Learning IW ERM
     print('\nTraining using full training data with estimated weights, testing on test set.')
-    # model = Net(D_in, 256, 10).to(device)
-    model = ResNet18().to(device)#ConvNet().to(device)
+    model = Net(D_in, 256, 10).to(device)
+    # model = ResNet18().to(device)#ConvNet().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     w = torch.tensor(w)
     m_validate = int(0.1*m_train)
@@ -336,52 +336,55 @@ def main():
     f1 = f1_score(test_labels, predictions, average='micro')  
     print('F1-score:', f1)
 
-    # Compare with using w1
-    w = torch.tensor(w1)
-    if use_cuda:
-        w = w.cuda().float()
-    else:
-        w = w.float()
+    if np.abs(mse1 - mse2) > 0.01:
 
-    best_loss = 10
-    print('\nComparing with using inverse in weight estimation, testing on test set.')
-    # model = Net(D_in, 256, 10).to(device)
-    model = ResNet18().to(device)
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
-    for epoch in range(1, args.epochs_training + 1):
-        train(args, model, device, train_loader, optimizer, epoch, weight=w) 
-        # validation
-        _, _, loss = test(args, model, device, validate_loader, weight=w)
-        # save checkpoint
-        if  loss < best_loss and epoch > 50:
-            print('saving model')
-            state = {
-                'model': model.state_dict(),
-                }
-            if not os.path.isdir('checkpoint'):
-                os.mkdir('checkpoint')
-            torch.save(state, './checkpoint/ckpt.pt')
-            best_loss = loss
-        
-    print('\nTesting on test set')
-    # read checkpoint
-    print('Reading model')
-    checkpoint = torch.load('./checkpoint/ckpt.pt')
-    model.load_state_dict(checkpoint['model'])
-    predictions, acc, _ = test(args, model, device, test_loader)
-    f1 = f1_score(test_labels, predictions, average='micro')  
-    print('F1-score:', f1)
+        # Compare with using w1
+        w = torch.tensor(w1)
+        if use_cuda:
+            w = w.cuda().float()
+        else:
+            w = w.float()
 
+        print('\nComparing with using inverse in weight estimation, testing on test set.')
+        best_loss = 10
+        model = Net(D_in, 256, 10).to(device)
+        # model = ResNet18().to(device)
+        optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
+        for epoch in range(1, args.epochs_training + 1):
+            train(args, model, device, train_loader, optimizer, epoch, weight=w) 
+            # validation
+            _, _, loss = test(args, model, device, validate_loader, weight=w)
+            # save checkpoint
+            if  loss < best_loss and epoch > 50:
+                print('saving model')
+                state = {
+                    'model': model.state_dict(),
+                    }
+                if not os.path.isdir('checkpoint'):
+                    os.mkdir('checkpoint')
+                torch.save(state, './checkpoint/ckpt.pt')
+                best_loss = loss
+            
+        print('\nTesting on test set')
+        # read checkpoint
+        print('Reading model')
+        checkpoint = torch.load('./checkpoint/ckpt.pt')
+        model.load_state_dict(checkpoint['model'])
+        predictions, acc, _ = test(args, model, device, test_loader)
+        f1 = f1_score(test_labels, predictions, average='micro')  
+        print('F1-score:', f1)
+
+
+    
+    print('\nComparing with using true weight, testing on test set.')
     w = torch.tensor(true_w)
     if use_cuda:
         w = w.cuda().float()
     else:
         w = w.float()
-
     best_loss = 10
-    print('\nComparing with using true weight, testing on test set.')
-    # model = Net(D_in, 256, 10).to(device)
-    model = ResNet18().to(device)
+    model = Net(D_in, 256, 10).to(device)
+    # model = ResNet18().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     for epoch in range(1, args.epochs_training + 1):
         train(args, model, device, train_loader, optimizer, epoch, weight=w) 
@@ -411,8 +414,8 @@ def main():
     # Re-train unweighted ERM using full training data, to ensure fair comparison
     print('\nTraining using full training data (unweighted), testing on test set.')
     best_loss = 10
-    # model = Net(D_in, 256, 10).to(device)
-    model = ResNet18().to(device)#ConvNet().to(device)
+    model = Net(D_in, 256, 10).to(device)
+    # model = ResNet18().to(device)#ConvNet().to(device)
     optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     # validate_loader = data.DataLoader(data.Subset(train_data, range(m_validate)),
     #     batch_size=args.batch_size, shuffle=True, **kwargs)

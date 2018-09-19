@@ -95,7 +95,7 @@ def test(args, model, device, test_loader, weight=None):
     print('Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
-    return prediction, 100. * correct / len(test_loader.dataset)
+    return prediction, 100. * correct / len(test_loader.dataset), test_loss
 
 
 def compute_w_inv(C_yy, mu_y):
@@ -186,6 +186,9 @@ def main():
     acc_w1_vec = np.zeros([args.iterations, 8])
     f1_w1_vec = np.zeros([args.iterations, 8])
 
+    acc_tw_vec = np.zeros([args.iterations, 8])
+    f1_tw_vec = np.zeros([args.iterations, 8])
+
     acc_nw_vec = np.zeros([args.iterations, 8])
     f1_nw_vec = np.zeros([args.iterations, 8])
 
@@ -247,7 +250,7 @@ def main():
                 train(args, model, device, train_loader, optimizer, epoch)
             
             print('\nTesting on training_data2 to estimate C_yy.')
-            predictions, acc = test(args, model, device, test_loader)
+            predictions, acc, _ = test(args, model, device, test_loader)
 
             # compute C_yy 
             C_yy = np.zeros((n_class, n_class)) 
@@ -268,7 +271,7 @@ def main():
             print('\nTesting on test data to estimate mu_y.')
             test_loader = data.DataLoader(test_data,
                 batch_size=args.batch_size, shuffle=False, **kwargs)
-            predictions, acc = test(args, model, device, test_loader)
+            predictions, acc, _ = test(args, model, device, test_loader)
             mu_y = np.zeros(n_class)
             for i in range(n_class):
                 mu_y[i] = float(len(np.where(predictions == i)[0]))/m_test
@@ -316,55 +319,137 @@ def main():
                 w = w.cuda().float()
             else:
                 w = w.float()
-
+            best_loss = 10
             for epoch in range(1, args.epochs_training + 1):
                 train(args, model, device, train_loader, optimizer, epoch, weight=w) 
                 # validation
-                test(args, model, device, validate_loader, weight=w) 
+                _, _, loss = test(args, model, device, validate_loader, weight=w) 
+                if  loss < best_loss and epoch > 10:
+                    print('saving model')
+                    state = {
+                        'model': model.state_dict(),
+                        }
+                    if not os.path.isdir('checkpoint'):
+                        os.mkdir('checkpoint')
+                    torch.save(state, './checkpoint/ckpt.pt')
+                    best_loss = loss
+                
             print('\nTesting on test set')
-            predictions, acc = test(args, model, device, test_loader)
+            # read checkpoint
+            print('Reading model')
+            checkpoint = torch.load('./checkpoint/ckpt.pt')
+            model.load_state_dict(checkpoint['model'])
+            predictions, acc, _ = test(args, model, device, test_loader)
             f1 = f1_score(test_labels, predictions, average='micro')  
             print('F1-score:', f1)
 
             acc_w2_vec[k,l] = acc
             f1_w2_vec[k,l] = f1 
+ 
+            if np.abs(mse1 - mse2) > 0.01:
+                # Compare with using w1
+                w = torch.tensor(w1)
+                if use_cuda:
+                    w = w.cuda().float()
+                else:
+                    w = w.float()
 
+                best_loss = 10
+                print('\nComparing with using inverse in weight estimation, testing on test set.')
+                model = Net(D_in, 256, 10).to(device)
+                # model = ResNet18().to(device)
+                optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
+                for epoch in range(1, args.epochs_training + 1):
+                    train(args, model, device, train_loader, optimizer, epoch, weight=w)  
+                    # validation
+                    _, _, loss = test(args, model, device, validate_loader,weight=w)
+                    if  loss < best_loss and epoch > 10:
+                        print('saving model')
+                        state = {
+                            'model': model.state_dict(),
+                            }
+                        if not os.path.isdir('checkpoint'):
+                            os.mkdir('checkpoint')
+                        torch.save(state, './checkpoint/ckpt.pt')
+                        best_loss = loss
 
-            # Compare with using w1
-            w = torch.tensor(w1)
-            if use_cuda:
-                w = w.cuda().float()
-            else:
-                w = w.float()
-            print('\nComparing with using inverse in weight estimation, testing on test set.')
-            model = Net(D_in, 256, 10).to(device)
-            # model = ResNet18().to(device)
-            optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
-            for epoch in range(1, args.epochs_training + 1):
-                train(args, model, device, train_loader, optimizer, epoch, weight=w)  
-                # validation
-                test(args, model, device, validate_loader,weight=w)
-            print('\nTesting on test set')
-            predictions, acc = test(args, model, device, test_loader)
-            f1 = f1_score(test_labels, predictions, average='micro')  
-            print('F1-score:', f1)
+                print('\nTesting on test set')
+                # read checkpoint
+                print('Reading model')
+                checkpoint = torch.load('./checkpoint/ckpt.pt')
+                model.load_state_dict(checkpoint['model'])
+                predictions, acc, _ = test(args, model, device, test_loader)
+                f1 = f1_score(test_labels, predictions, average='micro')  
+                print('F1-score:', f1)
 
             acc_w1_vec[k,l] = acc
             f1_w1_vec[k,l] = f1 
 
+
+            w = torch.tensor(true_w)
+            if use_cuda:
+                w = w.cuda().float()
+            else:
+                w = w.float()
+            print('\nComparing with using true weight, testing on test set.')
+            model = Net(D_in, 256, 10).to(device)
+            best_loss = 10
+            # model = ResNet18().to(device)
+            optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
+            for epoch in range(1, args.epochs_training + 1):
+                train(args, model, device, train_loader, optimizer, epoch, weight=w) 
+                # validation
+                _, _, loss = test(args, model, device, validate_loader, weight=w) 
+                if  loss < best_loss and epoch > 10:
+                    print('saving model')
+                    state = {
+                        'model': model.state_dict(),
+                        }
+                    if not os.path.isdir('checkpoint'):
+                        os.mkdir('checkpoint')
+                    torch.save(state, './checkpoint/ckpt.pt')
+                    best_loss = loss
+                
+            print('\nTesting on test set')
+            # read checkpoint
+            print('Reading model')
+            checkpoint = torch.load('./checkpoint/ckpt.pt')
+            model.load_state_dict(checkpoint['model']) 
+            predictions, acc, _ = test(args, model, device, test_loader)
+            f1 = f1_score(test_labels, predictions, average='micro')  
+            print('F1-score:', f1)
+
+            acc_tw_vec[k,l] = acc
+            f1_tw_vec[k,l] = f1
+
             # Re-train unweighted ERM using full training data, to ensure fair comparison
             print('\nTraining using full training data (unweighted), testing on test set.')
+            best_loss = 10
             model = Net(D_in, 256, 10).to(device)
             # model = ResNet18().to(device)#ConvNet().to(device)
             optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
             for epoch in range(1, args.epochs_training + 1):
                 train(args, model, device, train_loader, optimizer, epoch)
                 # validation
-                test(args, model, device, validate_loader)     
+                _, _, loss = test(args, model, device, validate_loader)
+                if  loss < best_loss and epoch > 10:
+                    print('saving model')
+                    state = {
+                        'model': model.state_dict(),
+                        }
+                    if not os.path.isdir('checkpoint'):
+                        os.mkdir('checkpoint')
+                    torch.save(state, './checkpoint/ckpt.pt')
+                    best_loss = loss
+                
             print('\nTesting on test set')
+            # read checkpoint
+            print('Reading model')
+            checkpoint = torch.load('./checkpoint/ckpt.pt')
+            model.load_state_dict(checkpoint['model'])     
             test_loader = data.DataLoader(test_data,
                 batch_size=args.batch_size, shuffle=False, **kwargs)
-            predictions, acc = test(args, model, device, test_loader)
+            predictions, acc, _ = test(args, model, device, test_loader)
             f1 = f1_score(test_labels, predictions, average='micro')  
             print('F1-score:', f1)
 
@@ -375,6 +460,8 @@ def main():
     np.savetxt("f1_w2.csv", f1_w2_vec, delimiter=",")
     np.savetxt("acc_w1.csv", acc_w1_vec, delimiter=",")
     np.savetxt("f1_w1.csv", f1_w1_vec, delimiter=",")
+    np.savetxt("acc_tw.csv", acc_w1_vec, delimiter=",")
+    np.savetxt("f1_tw.csv", f1_w1_vec, delimiter=",")
     np.savetxt("acc_nw.csv", acc_nw_vec, delimiter=",")
     np.savetxt("f1_nw.csv", f1_nw_vec, delimiter=",")
 
