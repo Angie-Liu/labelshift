@@ -13,6 +13,7 @@ import torchvision
 from resnet import *
 import cvxpy as cp
 from sklearn.metrics import f1_score
+import os
 
 class Net(nn.Module):
     def __init__(self, D_in, H, D_out):
