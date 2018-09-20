@@ -12,7 +12,6 @@ from cifar10_for_labelshift import CIFAR10_SHIFT
 import torchvision
 import cvxpy as cp
 import csv
-import matplotlib.pyplot as plt
 
 
 class Net(nn.Module):
@@ -94,6 +93,8 @@ def test(args, model, device, test_loader):
         100. * correct / len(test_loader.dataset)))
     return prediction
 
+
+
 def compute_w_inv(C_yy, mu_y):
     # compute weights
 
@@ -109,6 +110,7 @@ def compute_w_inv(C_yy, mu_y):
         if 'Singular matrix' in str(err):
             print('Cannot compute using matrix inverse due to singlar matrix, using psudo inverse')
             w = np.matmul(np.linalg.pinv(C_yy), mu_y)
+            w[np.where(w < 0)[0]] = 0
             return w
         else:
             raise RuntimeError("Unknown error")
@@ -150,6 +152,12 @@ def main():
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
+    parser.add_argument('--shift-type', type = int, default = 2, metavar = 'N',
+                        help = 'Label shift type (default: 2)')
+    parser.add_argument('--shift-para', nargs='+', type = float,
+                        help = 'Required: Label shift paramters (a list)', required=True)
+    parser.add_argument('--model', type = str, default='MLP', metavar='N',
+                        help = 'model type to use (default MLP)')
     parser.add_argument('--epochs-estimation', type=int, default=10, metavar='N',
                         help='number of epochs in weight estimation (default: 10)')
     parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
@@ -166,15 +174,18 @@ def main():
     device = torch.device("cuda" if use_cuda else "cpu")
 
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
+    num_paras = len(args.shift_para)
+    print(num_paras)
+    print(args.shift_para)
 
-    mse1_vec = np.ones([args.iterations, 8])
-    mse2_vec = np.ones([args.iterations, 8])
+    mse1_vec = np.ones([args.iterations, num_paras])
+    mse2_vec = np.ones([args.iterations, num_paras])
 
     for k in range(args.iterations):
-        for l in range(8):
+        for l in range(num_paras):
 
             if args.data_name  == 'mnist':
-                raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 2, 0.4*(l+1), target_label=2, train=True, download=True,
+                raw_data = MNIST_SHIFT('data/mnist', args.sample_size, args.shift_type, args.shift_para[l], target_label=2, train=True, download=True,
                     transform=transforms.Compose([
                                    transforms.ToTensor(),
                                    transforms.Normalize((0.1307,), (0.3081,))
@@ -182,7 +193,7 @@ def main():
                 D_in = 784
                 
             elif args.data_name == 'cifar10':
-                raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 2, 0.1*(l+1), target_label=2,
+                raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, args.shift_type, args.shift_para[l], target_label=2,
                     transform=transforms.Compose([
                                 transforms.RandomCrop(32, padding=4),
                                 transforms.RandomHorizontalFlip(),
@@ -264,7 +275,7 @@ def main():
             # print(mu_y)
 
             w1 = compute_w_inv(C_yy, mu_y)
-            alpha = 0.01
+            alpha = 0.001
             rho = compute_3deltaC(n_class, m_train, 0.05)
             w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
 

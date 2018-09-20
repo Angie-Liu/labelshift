@@ -162,6 +162,12 @@ def main():
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
+    parser.add_argument('--shift-type', type = int, default = 2, metavar = 'N',
+                        help = 'Label shift type (default: 2)')
+    parser.add_argument('--shift-para', nargs='+', type = float,
+                        help = 'Required: Label shift paramters (a list)', required=True)
+    parser.add_argument('--model', type = str, default='MLP', metavar='N',
+                        help = 'model type to use for cifar10 (default MLP)')
     parser.add_argument('--epochs-estimation', type=int, default=10, metavar='N',
                         help='number of epochs in weight estimation (default: 10)')
     parser.add_argument('--epochs-training', type=int, default=10, metavar='N',
@@ -181,32 +187,37 @@ def main():
 
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
-    acc_w2_vec = np.zeros([args.iterations, 8])
-    f1_w2_vec = np.zeros([args.iterations, 8])
+    num_paras = len(args.shift_para)
+    print(num_paras)
+    print(args.shift_para)
+    print(args.shift_para[0])
 
-    acc_w1_vec = np.zeros([args.iterations, 8])
-    f1_w1_vec = np.zeros([args.iterations, 8])
+    acc_w2_vec = np.zeros([args.iterations, num_paras])
+    f1_w2_vec = np.zeros([args.iterations, num_paras])
 
-    acc_tw_vec = np.zeros([args.iterations, 8])
-    f1_tw_vec = np.zeros([args.iterations, 8])
+    acc_w1_vec = np.zeros([args.iterations, num_paras])
+    f1_w1_vec = np.zeros([args.iterations, num_paras])
 
-    acc_nw_vec = np.zeros([args.iterations, 8])
-    f1_nw_vec = np.zeros([args.iterations, 8])
+    acc_tw_vec = np.zeros([args.iterations, num_paras])
+    f1_tw_vec = np.zeros([args.iterations, num_paras])
+
+    acc_nw_vec = np.zeros([args.iterations, num_paras])
+    f1_nw_vec = np.zeros([args.iterations, num_paras])
 
 
     for k in range(args.iterations):
-        for l in range(2):
+        for l in range(num_paras):
 
             if args.data_name  == 'mnist':
-                raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 5, 0.7, target_label=2, train=True, download=True,
+                raw_data = MNIST_SHIFT('data/mnist', args.sample_size, args.shift_type, args.shift_para[l], target_label=2, train=True, download=True,
                     transform=transforms.Compose([
                                    transforms.ToTensor(),
                                    transforms.Normalize((0.1307,), (0.3081,))
                                    ]))
                 D_in = 784
-                
+                base_model = Net(D_in, 256, 10)
             elif args.data_name == 'cifar10':
-                raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 3, 0.8*(l+1), target_label=2,
+                raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, args.shift_type, args.shift_para[l], target_label=2,
                     transform=transforms.Compose([
                                 transforms.RandomCrop(32, padding=4),
                                 transforms.RandomHorizontalFlip(),
@@ -214,6 +225,12 @@ def main():
                                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
                                 ]), download=True)
                 D_in = 3072
+                base_model = Net(D_in, 512, 10)
+                if args.model == 'Resnet':
+                    print('Using Resnet model for predictive tasks')
+                    train_model = ResNet18()
+                else:
+                    train_model = base_model
             else:
                 raise RuntimeError("Unsupported dataset")
 
@@ -243,7 +260,7 @@ def main():
             test_loader = data.DataLoader(train_data,
                 batch_size=args.batch_size, shuffle=False, **kwargs)
             
-            model = Net(D_in, 256, 10).to(device)
+            model = base_model.to(device)
             #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
             optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
             print('\nTraining using training_data1, testing on training_data2 to estimate weights.') 
@@ -305,8 +322,8 @@ def main():
 
             # Learning IW ERM
             print('\nTraining using full training data with estimated weights, testing on test set.')
-            # model = Net(D_in, 256, 10).to(device)
-            model = ResNet18().to(device)#ConvNet().to(device)
+            model = train_model.to(device)
+            # model = ResNet18().to(device)#ConvNet().to(device)
             optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
             w = torch.tensor(w)
             m_validate = int(0.1*m_train)
@@ -357,8 +374,8 @@ def main():
 
                 best_loss = 10
                 print('\nComparing with using inverse in weight estimation, testing on test set.')
-                # model = Net(D_in, 256, 10).to(device)
-                model = ResNet18().to(device)
+                model = train_model.to(device)
+                # model = ResNet18().to(device)
                 optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
                 for epoch in range(1, args.epochs_training + 1):
                     train(args, model, device, train_loader, optimizer, epoch, weight=w)  
@@ -393,9 +410,9 @@ def main():
             else:
                 w = w.float()
             print('\nComparing with using true weight, testing on test set.')
-            # model = Net(D_in, 256, 10).to(device)
+            model = train_model.to(device)
             best_loss = 10
-            model = ResNet18().to(device)
+            # model = ResNet18().to(device)
             optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
             for epoch in range(1, args.epochs_training + 1):
                 train(args, model, device, train_loader, optimizer, epoch, weight=w) 
@@ -426,8 +443,8 @@ def main():
             # Re-train unweighted ERM using full training data, to ensure fair comparison
             print('\nTraining using full training data (unweighted), testing on test set.')
             best_loss = 10
-            # model = Net(D_in, 256, 10).to(device)
-            model = ResNet18().to(device)#ConvNet().to(device)
+            model = train_model.to(device)
+            # model = ResNet18().to(device)#ConvNet().to(device)
             optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
             for epoch in range(1, args.epochs_training + 1):
                 train(args, model, device, train_loader, optimizer, epoch)
@@ -461,8 +478,8 @@ def main():
     np.savetxt("f1_w2.csv", f1_w2_vec, delimiter=",")
     np.savetxt("acc_w1.csv", acc_w1_vec, delimiter=",")
     np.savetxt("f1_w1.csv", f1_w1_vec, delimiter=",")
-    np.savetxt("acc_tw.csv", acc_w1_vec, delimiter=",")
-    np.savetxt("f1_tw.csv", f1_w1_vec, delimiter=",")
+    np.savetxt("acc_tw.csv", acc_tw_vec, delimiter=",")
+    np.savetxt("f1_tw.csv", f1_tw_vec, delimiter=",")
     np.savetxt("acc_nw.csv", acc_nw_vec, delimiter=",")
     np.savetxt("f1_nw.csv", f1_nw_vec, delimiter=",")
 
