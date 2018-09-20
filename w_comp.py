@@ -156,8 +156,6 @@ def main():
                         help = 'Label shift type (default: 2)')
     parser.add_argument('--shift-para', nargs='+', type = float,
                         help = 'Required: Label shift paramters (a list)', required=True)
-    parser.add_argument('--model', type = str, default='MLP', metavar='N',
-                        help = 'model type to use (default MLP)')
     parser.add_argument('--epochs-estimation', type=int, default=10, metavar='N',
                         help='number of epochs in weight estimation (default: 10)')
     parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
@@ -191,7 +189,7 @@ def main():
                                    transforms.Normalize((0.1307,), (0.3081,))
                                    ]))
                 D_in = 784
-                
+                base_model = Net(D_in, 256, 10)
             elif args.data_name == 'cifar10':
                 raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, args.shift_type, args.shift_para[l], target_label=2,
                     transform=transforms.Compose([
@@ -201,7 +199,7 @@ def main():
                                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
                                 ]), download=True)
                 D_in = 3072
-                #model = VGG('VGG19').to(device)#ConvNet().to(device)
+                base_model = Net(D_in, 512, 10)
             else:
                 raise RuntimeError("Unsupported dataset")
 
@@ -235,7 +233,7 @@ def main():
             test_loader = data.DataLoader(train_data,
                 batch_size=args.batch_size, shuffle=False, **kwargs)
             
-            model = Net(D_in, 256, 10).to(device)
+            model = base_model.to(device)
             #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
             optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
             print('\nTraining using training_data1, testing on training_data2 to estimate weights.') 

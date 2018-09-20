@@ -190,7 +190,6 @@ def main():
     num_paras = len(args.shift_para)
     print(num_paras)
     print(args.shift_para)
-    print(args.shift_para[0])
 
     acc_w2_vec = np.zeros([args.iterations, num_paras])
     f1_w2_vec = np.zeros([args.iterations, num_paras])
@@ -216,6 +215,7 @@ def main():
                                    ]))
                 D_in = 784
                 base_model = Net(D_in, 256, 10)
+                train_model = base_model
             elif args.data_name == 'cifar10':
                 raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, args.shift_type, args.shift_para[l], target_label=2,
                     transform=transforms.Compose([
