@@ -370,7 +370,7 @@ def main():
             checkpoint = torch.load('./checkpoint/ckpt.pt')
             model.load_state_dict(checkpoint['model'])
             predictions, acc, _ = test(args, model, device, test_loader)
-            f1 = f1_score(test_labels, predictions, average='micro')  
+            f1 = f1_score(test_labels, predictions, average='macro')  
             print('F1-score:', f1)
 
             acc_w2_vec[k,l] = acc
@@ -410,7 +410,7 @@ def main():
                 checkpoint = torch.load('./checkpoint/ckpt.pt')
                 model.load_state_dict(checkpoint['model'])
                 predictions, acc, _ = test(args, model, device, test_loader)
-                f1 = f1_score(test_labels, predictions, average='micro')  
+                f1 = f1_score(test_labels, predictions, average='macro')  
                 print('F1-score:', f1)
 
             acc_w1_vec[k,l] = acc
@@ -448,7 +448,7 @@ def main():
             checkpoint = torch.load('./checkpoint/ckpt.pt')
             model.load_state_dict(checkpoint['model']) 
             predictions, acc, _ = test(args, model, device, test_loader)
-            f1 = f1_score(test_labels, predictions, average='micro')  
+            f1 = f1_score(test_labels, predictions, average='macro')  
             print('F1-score:', f1)
 
             acc_tw_vec[k,l] = acc
@@ -483,7 +483,7 @@ def main():
             test_loader = data.DataLoader(test_data,
                 batch_size=args.batch_size, shuffle=False, **kwargs)
             predictions, acc, _ = test(args, model, device, test_loader)
-            f1 = f1_score(test_labels, predictions, average='micro')  
+            f1 = f1_score(test_labels, predictions, average='macro')  
             print('F1-score:', f1)
 
             acc_nw_vec[k,l] = acc
