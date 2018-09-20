@@ -352,16 +352,17 @@ def main():
             for epoch in range(1, args.epochs_training + 1):
                 train(args, model, device, train_loader, optimizer, epoch, weight=w) 
                 # validation
-                _, _, loss = test(args, model, device, validate_loader, weight=w) 
-                if  loss < best_loss and epoch > 10:
-                    print('saving model')
-                    state = {
-                        'model': model.state_dict(),
-                        }
-                    if not os.path.isdir('checkpoint'):
-                        os.mkdir('checkpoint')
-                    torch.save(state, './checkpoint/ckpt.pt')
-                    best_loss = loss
+                if epoch > 10:
+                    _, _, loss = test(args, model, device, validate_loader, weight=w) 
+                    if  loss < best_loss 
+                        print('saving model')
+                        state = {
+                            'model': model.state_dict(),
+                            }
+                        if not os.path.isdir('checkpoint'):
+                            os.mkdir('checkpoint')
+                        torch.save(state, './checkpoint/ckpt.pt')
+                        best_loss = loss
                 
             print('\nTesting on test set')
             # read checkpoint
@@ -391,16 +392,17 @@ def main():
                 for epoch in range(1, args.epochs_training + 1):
                     train(args, model, device, train_loader, optimizer, epoch, weight=w)  
                     # validation
-                    _, _, loss = test(args, model, device, validate_loader,weight=w)
-                    if  loss < best_loss and epoch > 10:
-                        print('saving model')
-                        state = {
-                            'model': model.state_dict(),
-                            }
-                        if not os.path.isdir('checkpoint'):
-                            os.mkdir('checkpoint')
-                        torch.save(state, './checkpoint/ckpt.pt')
-                        best_loss = loss
+                    if epoch > 10:
+                        _, _, loss = test(args, model, device, validate_loader, weight=w) 
+                        if  loss < best_loss 
+                            print('saving model')
+                            state = {
+                                'model': model.state_dict(),
+                                }
+                            if not os.path.isdir('checkpoint'):
+                                os.mkdir('checkpoint')
+                            torch.save(state, './checkpoint/ckpt.pt')
+                            best_loss = loss
 
                 print('\nTesting on test set')
                 # read checkpoint
@@ -428,16 +430,17 @@ def main():
             for epoch in range(1, args.epochs_training + 1):
                 train(args, model, device, train_loader, optimizer, epoch, weight=w) 
                 # validation
-                _, _, loss = test(args, model, device, validate_loader, weight=w) 
-                if  loss < best_loss and epoch > 10:
-                    print('saving model')
-                    state = {
-                        'model': model.state_dict(),
-                        }
-                    if not os.path.isdir('checkpoint'):
-                        os.mkdir('checkpoint')
-                    torch.save(state, './checkpoint/ckpt.pt')
-                    best_loss = loss
+                if epoch > 10:
+                    _, _, loss = test(args, model, device, validate_loader, weight=w) 
+                    if  loss < best_loss 
+                        print('saving model')
+                        state = {
+                            'model': model.state_dict(),
+                            }
+                        if not os.path.isdir('checkpoint'):
+                            os.mkdir('checkpoint')
+                        torch.save(state, './checkpoint/ckpt.pt')
+                        best_loss = loss
                 
             print('\nTesting on test set')
             # read checkpoint
@@ -460,16 +463,17 @@ def main():
             for epoch in range(1, args.epochs_training + 1):
                 train(args, model, device, train_loader, optimizer, epoch)
                 # validation
-                _, _, loss = test(args, model, device, validate_loader)
-                if  loss < best_loss and epoch > 10:
-                    print('saving model')
-                    state = {
-                        'model': model.state_dict(),
-                        }
-                    if not os.path.isdir('checkpoint'):
-                        os.mkdir('checkpoint')
-                    torch.save(state, './checkpoint/ckpt.pt')
-                    best_loss = loss
+                if epoch > 10:
+                    _, _, loss = test(args, model, device, validate_loader, weight=w) 
+                    if  loss < best_loss 
+                        print('saving model')
+                        state = {
+                            'model': model.state_dict(),
+                            }
+                        if not os.path.isdir('checkpoint'):
+                            os.mkdir('checkpoint')
+                        torch.save(state, './checkpoint/ckpt.pt')
+                        best_loss = loss
                 
             print('\nTesting on test set')
             # read checkpoint
