@@ -179,11 +179,19 @@ def main():
     mse1_vec = np.ones([args.iterations, num_paras])
     mse2_vec = np.ones([args.iterations, num_paras])
 
-    for k in range(args.iterations):
-        for l in range(num_paras):
+    
+    for l in range(num_paras):
+        if (args.shift_type == 3) or (args.shift_type == 4):
+            alpha = np.ones(10) * args.shift_para[l]
+            prob = np.random.dirichlet(alpha)
+            shift_para = prob
+        else:
+            shift_para = args.shift_para[l]
+            
+        for k in range(args.iterations):
 
             if args.data_name  == 'mnist':
-                raw_data = MNIST_SHIFT('data/mnist', args.sample_size, args.shift_type, args.shift_para[l], target_label=2, train=True, download=True,
+                raw_data = MNIST_SHIFT('data/mnist', args.sample_size, args.shift_type, shift_para, target_label=2, train=True, download=True,
                     transform=transforms.Compose([
                                    transforms.ToTensor(),
                                    transforms.Normalize((0.1307,), (0.3081,))
@@ -191,7 +199,7 @@ def main():
                 D_in = 784
                 base_model = Net(D_in, 256, 10)
             elif args.data_name == 'cifar10':
-                raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, args.shift_type, args.shift_para[l], target_label=2,
+                raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, args.shift_type, shift_para, target_label=2,
                     transform=transforms.Compose([
                                 transforms.RandomCrop(32, padding=4),
                                 transforms.RandomHorizontalFlip(),

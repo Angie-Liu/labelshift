@@ -127,19 +127,17 @@ class MNIST_SHIFT(data.Dataset):
             num_train = len(train_labels)
 
         elif shift_type == 3:
-            alpha = np.ones(10) * parameter
-            prob = np.random.dirichlet(alpha)
             # use the maximum prob to decide the total number of training samples
-            target_label = np.argmax(prob)
-            print(prob)
+            target_label = np.argmax(parameter)
+            print(parameter)
 
             indices_target = np.where(train_labels == target_label)[0]
             num_target = len(indices_target)
-            prob_max = np.amax(prob)    
+            prob_max = np.amax(parameter)    
             num_train = int(num_target/prob_max)
             indices_train = np.empty((0,1), dtype = int)
             for i in range(10):
-                num_i = int(num_train * prob[i])
+                num_i = int(num_train * parameter[i])
                 indices_i = np.where(train_labels == i)[0]
                 indices_i = indices_i[0:num_i] 
                 indices_train = np.append(indices_train, indices_i)
@@ -150,20 +148,19 @@ class MNIST_SHIFT(data.Dataset):
             num_train = len(train_labels)
 
         elif shift_type == 4:
-            alpha = np.ones(10) * parameter
-            prob = np.random.dirichlet(alpha)
+
             # use the maximum prob to decide the total number of training samples
-            target_label = np.argmax(prob)
-            print('Dirichlet shift with prob,', prob)
+            target_label = np.argmax(parameter)
+            print('Dirichlet shift with prob,', parameter)
 
             indices_target = np.where(test_labels == target_label)[0]
             num_target = len(indices_target)
-            prob_max = np.amax(prob)    
+            prob_max = np.amax(parameter)    
             m_test = int(num_target/prob_max)
             indices_test = np.empty((0,1), dtype = int)
 
             for i in range(10):
-                num_i = int(m_test * prob[i])
+                num_i = int(m_test * parameter[i])
                 indices_i = np.where(test_labels == i)[0]
                 indices_i = indices_i[0:num_i] 
                 indices_test = np.append(indices_test, indices_i)   
