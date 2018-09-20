@@ -455,16 +455,16 @@ def main():
     np.savetxt("acc_w1.csv", acc_w1_vec, delimiter=",")
     np.savetxt("f1_w1.csv", f1_w1_vec, delimiter=",")
     torch.save(w1_tensor, 'w1.pt')
-    torch.save(accp_w2_tensor, 'w1_accp.pt')
+    torch.save(accp_w1_tensor, 'w1_accp.pt')
 
     np.savetxt("acc_tw.csv", acc_tw_vec, delimiter=",")
     np.savetxt("f1_tw.csv", f1_tw_vec, delimiter=",")
     torch.save(tw_tensor, 'tw.pt')
-    torch.save(accp_w2_tensor, 'tw_accp.pt')
+    torch.save(accp_tw_tensor, 'tw_accp.pt')
 
     np.savetxt("acc_nw.csv", acc_nw_vec, delimiter=",")
     np.savetxt("f1_nw.csv", f1_nw_vec, delimiter=",")
-    torch.save(accp_w2_tensor, 'nw_accp.pt')
+    torch.save(accp_nw_tensor, 'nw_accp.pt')
 
 
 
