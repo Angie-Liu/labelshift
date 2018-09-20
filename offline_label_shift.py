@@ -194,14 +194,22 @@ def main():
     acc_w2_vec = np.zeros([args.iterations, num_paras])
     f1_w2_vec = np.zeros([args.iterations, num_paras])
 
+    w2_tensor = torch.zeros(args.iterations, num_paras, 10)
+
     acc_w1_vec = np.zeros([args.iterations, num_paras])
     f1_w1_vec = np.zeros([args.iterations, num_paras])
+
+    w1_tensor = torch.zeros(args.iterations, num_paras, 10)
 
     acc_tw_vec = np.zeros([args.iterations, num_paras])
     f1_tw_vec = np.zeros([args.iterations, num_paras])
 
+    tw_tensor = torch.zeros(args.iterations, num_paras, 10)
+
     acc_nw_vec = np.zeros([args.iterations, num_paras])
     f1_nw_vec = np.zeros([args.iterations, num_paras])
+
+
 
 
     for k in range(args.iterations):
@@ -297,6 +305,7 @@ def main():
             # print(mu_y)
 
             w1 = compute_w_inv(C_yy, mu_y)
+            w1_tensor[k,l,:] = torch.tensor(w1)
 
             # compute the true w
             mu_y_train = np.zeros(n_class)
@@ -306,6 +315,7 @@ def main():
             for i in range(n_class):
                 mu_y_test[i] = float(len(np.where(test_labels == i)[0]))/m_test
             true_w = mu_y_test/mu_y_train
+            tw_tensor[k,l,:] = torch.tensor(true_w)
             print('True w is', true_w)
             mse1 = np.sum(np.square(true_w - w1))/n_class
 
@@ -313,6 +323,7 @@ def main():
             #alpha = choose_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho, true_w)
             alpha = 0.001
             w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
+            w2_tensor[k,l,:] = torch.tensor(w2)
             mse2 = np.sum(np.square(true_w - w2))/n_class
 
             print('Mean square error, ', mse1)
@@ -476,12 +487,20 @@ def main():
 
     np.savetxt("acc_w2.csv", acc_w2_vec, delimiter=",")
     np.savetxt("f1_w2.csv", f1_w2_vec, delimiter=",")
+    torch.save(w2_tensor, 'w2.pt')
+
     np.savetxt("acc_w1.csv", acc_w1_vec, delimiter=",")
     np.savetxt("f1_w1.csv", f1_w1_vec, delimiter=",")
+    torch.save(w1_tensor, 'w1.pt')
+
     np.savetxt("acc_tw.csv", acc_tw_vec, delimiter=",")
     np.savetxt("f1_tw.csv", f1_tw_vec, delimiter=",")
+    torch.save(tw_tensor, 'tw.pt')
+
+
     np.savetxt("acc_nw.csv", acc_nw_vec, delimiter=",")
     np.savetxt("f1_nw.csv", f1_nw_vec, delimiter=",")
+
 
 
 
