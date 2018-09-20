@@ -354,7 +354,7 @@ def main():
                 # validation
                 if epoch > 10:
                     _, _, loss = test(args, model, device, validate_loader, weight=w) 
-                    if  loss < best_loss 
+                    if  loss < best_loss:
                         print('saving model')
                         state = {
                             'model': model.state_dict(),
@@ -394,7 +394,7 @@ def main():
                     # validation
                     if epoch > 10:
                         _, _, loss = test(args, model, device, validate_loader, weight=w) 
-                        if  loss < best_loss 
+                        if  loss < best_loss:
                             print('saving model')
                             state = {
                                 'model': model.state_dict(),
@@ -432,7 +432,7 @@ def main():
                 # validation
                 if epoch > 10:
                     _, _, loss = test(args, model, device, validate_loader, weight=w) 
-                    if  loss < best_loss 
+                    if  loss < best_loss:
                         print('saving model')
                         state = {
                             'model': model.state_dict(),
@@ -465,7 +465,7 @@ def main():
                 # validation
                 if epoch > 10:
                     _, _, loss = test(args, model, device, validate_loader, weight=w) 
-                    if  loss < best_loss 
+                    if  loss < best_loss: 
                         print('saving model')
                         state = {
                             'model': model.state_dict(),
