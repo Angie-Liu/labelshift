@@ -168,21 +168,24 @@ def acc_perclass(y, predictions, n_class):
     predictions = np.concatenate(predictions)
 
     for i in range(n_class):
-        acc[i] = float(len(np.where((predictions == i)& (y == i))[0]))/float(len(np.where(y == i)[0]))
-
+        si = float(len(np.where(y == i)[0]))
+        if si != 0:
+            acc[i] = float(len(np.where((predictions == i)& (y == i))[0]))/float(len(np.where(y == i)[0]))
+        else:
+            acc[i] = 0
     return acc
 
 def train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class):
     w = torch.tensor(w)
-   
+    train_model.load_state_dict(init_state)
     if use_cuda:
         w = w.cuda().float()
+        train_model.cuda()
     else:
         w = w.float()
     
     best_loss = 10
     # model = train_model.to(device)#ConvNet().to(device)
-    train_model.load_state_dict(init_state)
     optimizer = optim.SGD(train_model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     for epoch in range(1, args.epochs_training + 1):
         train(args, train_model, device, train_loader, optimizer, epoch, weight=w) 
@@ -257,21 +260,23 @@ def main():
 
     acc_w2_vec = np.zeros([args.iterations, num_paras])
     f1_w2_vec = np.zeros([args.iterations, num_paras])
+    accp_w2_tensor = torch.zeros([args.iterations, num_paras, 10])
 
-    w2_tensor = torch.zeros(args.iterations, num_paras, 10)
+    w2_tensor = torch.zeros([args.iterations, num_paras, 10])
 
     acc_w1_vec = np.zeros([args.iterations, num_paras])
     f1_w1_vec = np.zeros([args.iterations, num_paras])
-
-    w1_tensor = torch.zeros(args.iterations, num_paras, 10)
+    accp_w1_tensor = torch.zeros([args.iterations, num_paras, 10])
+    w1_tensor = torch.zeros([args.iterations, num_paras, 10])
 
     acc_tw_vec = np.zeros([args.iterations, num_paras])
     f1_tw_vec = np.zeros([args.iterations, num_paras])
-
+    accp_tw_tensor = torch.zeros([args.iterations, num_paras, 10])
     tw_tensor = torch.zeros(args.iterations, num_paras, 10)
 
     acc_nw_vec = np.zeros([args.iterations, num_paras])
     f1_nw_vec = np.zeros([args.iterations, num_paras])
+    accp_nw_tensor = torch.zeros([args.iterations, num_paras, 10])
 
 
     for l in range(num_paras):
@@ -413,6 +418,7 @@ def main():
             acc, f1, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
             acc_w2_vec[k,l] = acc
             f1_w2_vec[k,l] = f1 
+            accp_w2_tensor[k,l, :] = torch.tensor(acc_per)
  
             if np.abs(mse1 - mse2) > 0.01:
                 # Compare with using w1
@@ -423,12 +429,14 @@ def main():
 
             acc_w1_vec[k,l] = acc
             f1_w1_vec[k,l] = f1 
+            accp_w1_tensor[k,l, :] = torch.tensor(acc_per)
       
             print('\nComparing with using true weight, testing on test set.')
             w = true_w
             acc, f1, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
             acc_tw_vec[k,l] = acc
             f1_tw_vec[k,l] = f1
+            accp_tw_tensor[k,l, :] = torch.tensor(acc_per)
 
             # Re-train unweighted ERM using full training data, to ensure fair comparison
             print('\nTraining using full training data (unweighted), testing on test set.')
@@ -437,23 +445,26 @@ def main():
             
             acc_nw_vec[k,l] = acc
             f1_nw_vec[k,l] = f1 
+            accp_nw_tensor[k,l, :] = torch.tensor(acc_per)
 
     np.savetxt("acc_w2.csv", acc_w2_vec, delimiter=",")
     np.savetxt("f1_w2.csv", f1_w2_vec, delimiter=",")
     torch.save(w2_tensor, 'w2.pt')
+    torch.save(accp_w2_tensor, 'w2_accp.pt')
 
     np.savetxt("acc_w1.csv", acc_w1_vec, delimiter=",")
     np.savetxt("f1_w1.csv", f1_w1_vec, delimiter=",")
     torch.save(w1_tensor, 'w1.pt')
+    torch.save(accp_w2_tensor, 'w1_accp.pt')
 
     np.savetxt("acc_tw.csv", acc_tw_vec, delimiter=",")
     np.savetxt("f1_tw.csv", f1_tw_vec, delimiter=",")
     torch.save(tw_tensor, 'tw.pt')
-
+    torch.save(accp_w2_tensor, 'tw_accp.pt')
 
     np.savetxt("acc_nw.csv", acc_nw_vec, delimiter=",")
     np.savetxt("f1_nw.csv", f1_nw_vec, delimiter=",")
-
+    torch.save(accp_w2_tensor, 'nw_accp.pt')
 
 
 
