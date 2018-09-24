@@ -438,10 +438,10 @@ def main():
             accp_tw_tensor[k,l, :] = torch.tensor(acc_per)
 
 
-    torch.save(acc_tw_vec, 'acc_w2.pt')
-    torch.save(f1_tw_vec, 'f1_w2.pt')
-    torch.save(tw_tensor, 'w2.pt')
-    torch.save(accp_tw_tensor, 'w2_accp.pt')
+    torch.save(acc_w2_vec, 'acc_w2.pt')
+    torch.save(f1_w2_vec, 'f1_w2.pt')
+    torch.save(w2_tensor, 'w2.pt')
+    torch.save(accp_w2_tensor, 'w2_accp.pt')
 
     torch.save(acc_tw_vec, 'acc_tw.pt')
     torch.save(f1_tw_vec, 'f1_tw.pt')
