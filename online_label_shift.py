@@ -260,6 +260,60 @@ def main():
 
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
+    if args.data_name  == 'mnist':
+        raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 1, 0, target_label=2, train=True, download=True,
+            transform=transforms.Compose([
+                           transforms.ToTensor(),
+                           transforms.Normalize((0.1307,), (0.3081,))
+                           ]))
+        D_in = 784
+        base_model = Net(D_in, 256, 10)
+    elif args.data_name == 'cifar10':
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 1, 0, target_label=2,
+            transform=transforms.Compose([
+                        transforms.RandomCrop(32, padding=4),
+                        transforms.RandomHorizontalFlip(),
+                        transforms.ToTensor(),
+                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                        ]), download=True)
+        D_in = 3072
+        base_model = Net(D_in, 512, 10)
+    else:
+        raise RuntimeError("Unsupported dataset")
+
+    # saparate into training and testing
+    m = len(raw_data)
+    m_test = raw_data.get_testsize()
+    print('Test size,', m_test)
+    n_class = 10
+    test_indices = range(m_test)
+    test_data = data.Subset(raw_data, test_indices)
+    train_data = data.Subset(raw_data, range(m_test, m))
+   
+    # saparate into training and validation
+    m_train = m -  m_test
+    # m_train_t = int(m_train/2)
+    print('Training size,', m_train)
+
+    # get labels for future use
+    test_labels = raw_data.get_test_label()
+    train_labels = raw_data.get_train_label()
+
+
+    # finish data preprocessing
+    # estimate weights using training and validation set
+    train_loader = data.DataLoader(train_data,
+        batch_size=args.batch_size, shuffle=True, **kwargs)
+    
+    base_model = base_model.to(device)
+    #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
+    optimizer = optim.SGD(base_model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
+    print('\nTraining using training_data1, testing on training_data2 to estimate weights.') 
+    for epoch in range(1, args.epochs_estimation + 1):
+        train(args, base_model, device, train_loader, optimizer, epoch)
+
+    print("Finish training for h_0")
+   
     num_paras = len(args.testsize_range)
     print(num_paras)
     print(args.testsize_range)
@@ -298,9 +352,9 @@ def main():
                                    transforms.Normalize((0.1307,), (0.3081,))
                                    ]))
                 D_in = 784
-                base_model = Net(D_in, 256, 10)
-                train_model = base_model
-                model = train_model.to(device)
+                
+                train_model = Net(D_in, 256, 10)
+                train_model = train_model.to(device)
                 init_state = copy.deepcopy(train_model.state_dict())
             elif args.data_name == 'cifar10':
                 raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, args.shift_type, shift_para, target_label=2,
@@ -311,13 +365,12 @@ def main():
                                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
                                 ]), download=True)
                 D_in = 3072
-                base_model = Net(D_in, 512, 10)
-
+        
                 if args.model == 'Resnet':
                     print('Using Resnet model for predictive tasks')
                     train_model = ResNet18()
                 else:
-                    train_model = base_model
+                    train_model = Net(D_in, 512, 10)
                 init_state = copy.deepcopy(train_model.state_dict())
             else:
                 raise RuntimeError("Unsupported dataset")
@@ -344,21 +397,12 @@ def main():
 
             # finish data preprocessing
             # estimate weights using training and validation set
-            train_loader = data.DataLoader(train_data,
-                batch_size=args.batch_size, shuffle=True, **kwargs)
 
             test_loader = data.DataLoader(train_data,
                 batch_size=args.batch_size, shuffle=False, **kwargs)
             
-            model = base_model.to(device)
-            #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
-            optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
-            print('\nTraining using training_data1, testing on training_data2 to estimate weights.') 
-            for epoch in range(1, args.epochs_estimation + 1):
-                train(args, model, device, train_loader, optimizer, epoch)
-            
             print('\nTesting on training_data2 to estimate C_yy.')
-            predictions, acc, _ = test(args, model, device, test_loader)
+            predictions, acc, _ = test(args, base_model, device, test_loader)
 
             # compute C_yy 
             C_yy = np.zeros((n_class, n_class)) 
@@ -379,7 +423,7 @@ def main():
             print('\nTesting on test data to estimate mu_y.')
             test_loader = data.DataLoader(test_data,
                 batch_size=args.batch_size, shuffle=False, **kwargs)
-            predictions, acc, _ = test(args, model, device, test_loader)
+            predictions, acc, _ = test(args, base_model, device, test_loader)
             mu_y = np.zeros(n_class)
             for i in range(n_class):
                 mu_y[i] = float(len(np.where(predictions == i)[0]))/m_test
@@ -409,11 +453,11 @@ def main():
                 print('Using lambda = ', args.labda[h])
                 w3 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho, args.labda[h])
                 mse3 = np.sum(np.square(true_w - w3))/n_class
-                w2_tensor[k,l,h, :] = torch.tensor(w2)
+                w2_tensor[k,l,h, :] = torch.tensor(w3)
                
                 print('Mean square error, ', mse3)
 
-                w = w2 
+                w = w3
 
                 # Learning IW ERM
                 
@@ -424,6 +468,8 @@ def main():
                 # 10% validation set
                 train_loader = data.DataLoader(data.Subset(train_data, range(m_validate, m_train)),
                     batch_size=args.batch_size, shuffle=True, **kwargs)
+
+
 
                 acc, f1, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
                 acc_w2_vec[k,l, h] = acc
