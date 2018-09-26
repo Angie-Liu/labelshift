@@ -432,16 +432,24 @@ def main():
 
             w1 = compute_w_inv(C_yy, mu_y)
 
-            # compute the true w
-            true_w = compute_true_w(train_labels, test_labels, n_class, m_train, m_test)
-            tw_tensor[k,l,:] = torch.tensor(true_w)
-            print('True w is', true_w)
-            mse1 = np.sum(np.square(true_w - w1))/n_class
-
             rho = compute_3deltaC(n_class, m_train, 0.05)
             #alpha = choose_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho, true_w)
             alpha = 0.001
             w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
+
+            # use original test set to test
+            test_data = data.Subset(raw_data, test_indices)
+            test_labels = raw_data.get_test_label()
+            m_test = raw_data.get_testsize()
+            test_loader = data.DataLoader(test_data,
+                batch_size=args.batch_size, shuffle=False, **kwargs)
+
+            # compute the true w
+            true_w = compute_true_w(train_labels, test_labels, n_class, m_train, m_test)
+            tw_tensor[k,l,:] = torch.tensor(true_w)
+            print('True w is', true_w)
+
+            mse1 = np.sum(np.square(true_w - w1))/n_class
             mse2 = np.sum(np.square(true_w - w2))/n_class
 
             print('Mean square error, ', mse1)
@@ -468,8 +476,6 @@ def main():
                 # 10% validation set
                 train_loader = data.DataLoader(data.Subset(train_data, range(m_validate, m_train)),
                     batch_size=args.batch_size, shuffle=True, **kwargs)
-
-
 
                 acc, f1, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
                 acc_w2_vec[k,l, h] = acc
