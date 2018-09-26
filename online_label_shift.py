@@ -469,7 +469,6 @@ def main():
 
                 # Learning IW ERM
                 
-                
                 m_validate = int(0.1*m_train)
                 validate_loader = data.DataLoader(data.Subset(train_data, range(m_validate)),
                     batch_size=args.batch_size, shuffle=True, **kwargs)
