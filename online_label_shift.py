@@ -437,6 +437,7 @@ def main():
             alpha = 0.001
             w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
 
+
             # use original test set to test
             test_data = data.Subset(raw_data, test_indices)
             test_labels = raw_data.get_test_label()
@@ -449,17 +450,28 @@ def main():
             tw_tensor[k,l,:] = torch.tensor(true_w)
             print('True w is', true_w)
 
+            theta_max = np.linalg.norm(true_w)
+            print('Theta_max is', theta_max)
+            labda = 1 - 1/(np.sqrt(args.testsize_range[l]))
+            print('labda is', labda)
+
+
             mse1 = np.sum(np.square(true_w - w1))/n_class
             mse2 = np.sum(np.square(true_w - w2))/n_class
 
             print('Mean square error, ', mse1)
             print('Mean square error, ', mse2)
 
-            for h in range(num_labda):
+            for h in range(3):
+                
+                if h != 1:
+                    labda_use = args.labda[h]
+                else:
+                    labda_use = labda
 
                 print('\nTraining using full training data with estimated weights, testing on test set.')
-                print('Using lambda = ', args.labda[h])
-                w3 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho, args.labda[h])
+                print('Using lambda = ', labda_use)
+                w3 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho,labda_use )
                 mse3 = np.sum(np.square(true_w - w3))/n_class
                 w2_tensor[k,l,h, :] = torch.tensor(w3)
                
