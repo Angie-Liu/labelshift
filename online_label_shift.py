@@ -225,6 +225,7 @@ def main():
     parser.add_argument('--testsize-range', nargs='+', type = int,
                         help = 'Required: test size (a list), < sample size', required=True)
     parser.add_argument('--labda', nargs='+', type = float, help = 'Requred: lambda', required = True)
+    parser.add_argument('--sigma', type=float, default=0, help='For training default h_0')
     parser.add_argument('--data-name', type=str, default='mnist', metavar='N',
                         help='dataset name, mnist or cifar10 (default: mnist)')
     parser.add_argument('--sample-size', type=int, default=30000, metavar='N',
@@ -261,7 +262,7 @@ def main():
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
     if args.data_name  == 'mnist':
-        raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 1, 0, target_label=2, train=True, download=True,
+        raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 1, args.sigma, target_label=2, train=True, download=True,
             transform=transforms.Compose([
                            transforms.ToTensor(),
                            transforms.Normalize((0.1307,), (0.3081,))
@@ -269,7 +270,7 @@ def main():
         D_in = 784
         base_model = Net(D_in, 256, 10)
     elif args.data_name == 'cifar10':
-        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 1, 0, target_label=2,
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 1, args.sigma, target_label=2,
             transform=transforms.Compose([
                         transforms.RandomCrop(32, padding=4),
                         transforms.RandomHorizontalFlip(),
@@ -450,10 +451,10 @@ def main():
             tw_tensor[k,l,:] = torch.tensor(true_w)
             print('True w is', true_w)
 
-            theta_max = np.linalg.norm(true_w)
-            print('Theta_max is', theta_max)
-            labda = 1 - 1/(np.sqrt(args.testsize_range[l]))
-            print('labda is', labda)
+            # theta_max = np.linalg.norm(true_w)
+            # print('Theta_max is', theta_max)
+            # labda = 1 - 1/(np.sqrt(args.testsize_range[l]))
+            # print('labda is', labda)
 
 
             mse1 = np.sum(np.square(true_w - w1))/n_class
@@ -462,12 +463,12 @@ def main():
             print('Mean square error, ', mse1)
             print('Mean square error, ', mse2)
 
-            for h in range(3):
+            for h in range(len(args.labda)):
                 
-                if h != 1:
-                    labda_use = args.labda[h]
-                else:
-                    labda_use = labda
+                # if h != 1:
+                labda_use = args.labda[h]
+                # else:
+                #     labda_use = labda
 
                 print('\nTraining using full training data with estimated weights, testing on test set.')
                 print('Using lambda = ', labda_use)
