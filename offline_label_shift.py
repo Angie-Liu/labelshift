@@ -189,18 +189,19 @@ def train_validate_test(args, device, use_cuda, w, train_model, init_state, trai
     optimizer = optim.SGD(train_model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     for epoch in range(1, args.epochs_training + 1):
         train(args, train_model, device, train_loader, optimizer, epoch, weight=w) 
-        # validation
-        _, _, loss = test(args, train_model, device, validate_loader, weight=w)
         # save checkpoint
-        if  loss < best_loss and epoch > args.epochs_validation:
-            print('saving model')
-            state = {
-                'model': train_model.state_dict(),
-                }
-            if not os.path.isdir('checkpoint'):
-                os.mkdir('checkpoint')
-            torch.save(state, './checkpoint/ckpt.pt')
-            best_loss = loss
+        if epoch > args.epochs_validation:
+            # validation
+            _, _, loss = test(args, train_model, device, validate_loader, weight=w)
+            if loss < best_loss: 
+                print('saving model')
+                state = {
+                    'model': train_model.state_dict(),
+                    }
+                if not os.path.isdir('checkpoint'):
+                    os.mkdir('checkpoint')
+                torch.save(state, './checkpoint/ckpt.pt')
+                best_loss = loss
         
     print('\nTesting on test set')
     # read checkpoint
@@ -254,28 +255,83 @@ def main():
 
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
+    # get fixed ho before trying different shift
+   
+    if args.data_name  == 'mnist':
+        raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 1, 0.9, target_label=9, train=True, download=True,
+            transform=transforms.Compose([
+                           transforms.ToTensor(),
+                           transforms.Normalize((0.1307,), (0.3081,))
+                           ]))
+        D_in = 784
+        base_model = Net(D_in, 256, 10)
+        
+    elif args.data_name == 'cifar10':
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 1, 0, target_label=2,
+            transform=transforms.Compose([
+                        transforms.RandomCrop(32, padding=4),
+                        transforms.RandomHorizontalFlip(),
+                        transforms.ToTensor(),
+                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                        ]), download=True)
+        D_in = 3072
+        base_model = Net(D_in, 512, 10)
+    else:
+        raise RuntimeError("Unsupported dataset")
+
+# saparate into training and testing
+    m = len(raw_data)
+    m_test = raw_data.get_testsize()
+    print('Test size,', m_test)
+    n_class = 10
+    test_indices = range(m_test)
+    test_data = data.Subset(raw_data, test_indices)
+    train_data = data.Subset(raw_data, range(m_test, m))
+    # saparate into training and validation
+    m_train = m -  m_test
+    # m_train_t = int(m_train/2)
+    print('Training size,', m_train)
+
+    # get labels for future use
+    test_labels = raw_data.get_test_label()
+    train_labels = raw_data.get_train_label()
+
+    # finish data preprocessing
+    # estimate weights using training and validation set
+    train_loader = data.DataLoader(train_data,
+        batch_size=args.batch_size, shuffle=True, **kwargs)
+    
+    base_model = base_model.to(device)
+    #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
+    optimizer = optim.SGD(base_model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
+    print('\nTraining using training_data1, testing on training_data2 to estimate weights.') 
+    for epoch in range(1, args.epochs_estimation + 1):
+        train(args, base_model, device, train_loader, optimizer, epoch)
+
+    print("\nfinished learning H_0")
+
     num_paras = len(args.shift_para)
     print(num_paras)
     print(args.shift_para)
 
-    acc_w2_vec = np.zeros([args.iterations, num_paras])
-    f1_w2_vec = np.zeros([args.iterations, num_paras])
+    acc_w2_vec = torch.zeros([args.iterations, num_paras])
+    f1_w2_vec = torch.zeros([args.iterations, num_paras])
     accp_w2_tensor = torch.zeros([args.iterations, num_paras, 10])
 
     w2_tensor = torch.zeros([args.iterations, num_paras, 10])
 
-    acc_w1_vec = np.zeros([args.iterations, num_paras])
-    f1_w1_vec = np.zeros([args.iterations, num_paras])
+    acc_w1_vec = torch.zeros([args.iterations, num_paras])
+    f1_w1_vec = torch.zeros([args.iterations, num_paras])
     accp_w1_tensor = torch.zeros([args.iterations, num_paras, 10])
     w1_tensor = torch.zeros([args.iterations, num_paras, 10])
 
-    acc_tw_vec = np.zeros([args.iterations, num_paras])
-    f1_tw_vec = np.zeros([args.iterations, num_paras])
+    acc_tw_vec = torch.zeros([args.iterations, num_paras])
+    f1_tw_vec = torch.zeros([args.iterations, num_paras])
     accp_tw_tensor = torch.zeros([args.iterations, num_paras, 10])
     tw_tensor = torch.zeros(args.iterations, num_paras, 10)
 
-    acc_nw_vec = np.zeros([args.iterations, num_paras])
-    f1_nw_vec = np.zeros([args.iterations, num_paras])
+    acc_nw_vec = torch.zeros([args.iterations, num_paras])
+    f1_nw_vec = torch.zeros([args.iterations, num_paras])
     accp_nw_tensor = torch.zeros([args.iterations, num_paras, 10])
 
 
@@ -296,10 +352,9 @@ def main():
                                    transforms.ToTensor(),
                                    transforms.Normalize((0.1307,), (0.3081,))
                                    ]))
-                D_in = 784
-                base_model = Net(D_in, 256, 10)
-                train_model = base_model
-                model = train_model.to(device)
+
+                train_model  = Net(D_in, 256, 10)
+                train_model = train_model.to(device)
                 init_state = copy.deepcopy(train_model.state_dict())
             elif args.data_name == 'cifar10':
                 raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, args.shift_type, shift_para, target_label=2,
@@ -309,14 +364,12 @@ def main():
                                 transforms.ToTensor(),
                                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
                                 ]), download=True)
-                D_in = 3072
-                base_model = Net(D_in, 512, 10)
 
                 if args.model == 'Resnet':
                     print('Using Resnet model for predictive tasks')
                     train_model = ResNet18()
                 else:
-                    train_model = base_model
+                    train_model = Net(D_in, 256, 10)
                 init_state = copy.deepcopy(train_model.state_dict())
             else:
                 raise RuntimeError("Unsupported dataset")
@@ -341,21 +394,12 @@ def main():
 
             # finish data preprocessing
             # estimate weights using training and validation set
-            train_loader = data.DataLoader(train_data,
-                batch_size=args.batch_size, shuffle=True, **kwargs)
-
             test_loader = data.DataLoader(train_data,
                 batch_size=args.batch_size, shuffle=False, **kwargs)
             
-            model = base_model.to(device)
-            #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
-            optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
-            print('\nTraining using training_data1, testing on training_data2 to estimate weights.') 
-            for epoch in range(1, args.epochs_estimation + 1):
-                train(args, model, device, train_loader, optimizer, epoch)
             
             print('\nTesting on training_data2 to estimate C_yy.')
-            predictions, acc, _ = test(args, model, device, test_loader)
+            predictions, acc, _ = test(args, base_model, device, test_loader)
 
             # compute C_yy 
             C_yy = np.zeros((n_class, n_class)) 
@@ -376,7 +420,7 @@ def main():
             print('\nTesting on test data to estimate mu_y.')
             test_loader = data.DataLoader(test_data,
                 batch_size=args.batch_size, shuffle=False, **kwargs)
-            predictions, acc, _ = test(args, model, device, test_loader)
+            predictions, acc, _ = test(args, base_model, device, test_loader)
             mu_y = np.zeros(n_class)
             for i in range(n_class):
                 mu_y[i] = float(len(np.where(predictions == i)[0]))/m_test
@@ -419,6 +463,16 @@ def main():
             acc_w2_vec[k,l] = acc
             f1_w2_vec[k,l] = f1 
             accp_w2_tensor[k,l, :] = torch.tensor(acc_per)
+
+            # Re-train unweighted ERM using full training data, to ensure fair comparison
+            print('\nTraining using full training data (unweighted), testing on test set.')
+            w = np.ones((10,1))
+            acc, f1, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
+            
+            acc_nw_vec[k,l] = acc
+            f1_nw_vec[k,l] = f1 
+            accp_nw_tensor[k,l, :] = torch.tensor(acc_per)
+
  
             if np.abs(mse1 - mse2) > 0.01:
                 # Compare with using w1
@@ -438,32 +492,24 @@ def main():
             f1_tw_vec[k,l] = f1
             accp_tw_tensor[k,l, :] = torch.tensor(acc_per)
 
-            # Re-train unweighted ERM using full training data, to ensure fair comparison
-            print('\nTraining using full training data (unweighted), testing on test set.')
-            w = np.ones((10,1))
-            acc, f1, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
             
-            acc_nw_vec[k,l] = acc
-            f1_nw_vec[k,l] = f1 
-            accp_nw_tensor[k,l, :] = torch.tensor(acc_per)
-
-    np.savetxt("acc_w2.csv", acc_w2_vec, delimiter=",")
-    np.savetxt("f1_w2.csv", f1_w2_vec, delimiter=",")
+    torch.save(acc_w2_vec, 'acc_w2.pt')
+    torch.save(f1_w2_vec, 'f1_w2.pt')
     torch.save(w2_tensor, 'w2.pt')
     torch.save(accp_w2_tensor, 'w2_accp.pt')
 
-    np.savetxt("acc_w1.csv", acc_w1_vec, delimiter=",")
-    np.savetxt("f1_w1.csv", f1_w1_vec, delimiter=",")
+    torch.save(acc_w1_vec, 'acc_w1.pt')
+    torch.save(f1_w1_vec, 'f1_w1.pt')
     torch.save(w1_tensor, 'w1.pt')
     torch.save(accp_w1_tensor, 'w1_accp.pt')
 
-    np.savetxt("acc_tw.csv", acc_tw_vec, delimiter=",")
-    np.savetxt("f1_tw.csv", f1_tw_vec, delimiter=",")
+    torch.save(acc_tw_vec, 'acc_tw.pt')
+    torch.save(f1_tw_vec, 'f1_tw.pt')
     torch.save(tw_tensor, 'tw.pt')
     torch.save(accp_tw_tensor, 'tw_accp.pt')
 
-    np.savetxt("acc_nw.csv", acc_nw_vec, delimiter=",")
-    np.savetxt("f1_nw.csv", f1_nw_vec, delimiter=",")
+    torch.save(acc_nw_vec, 'acc_nw.pt')
+    torch.save(f1_nw_vec, 'f1_nw.pt')
     torch.save(accp_nw_tensor, 'nw_accp.pt')
 
 
