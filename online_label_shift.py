@@ -335,6 +335,11 @@ def main():
     accp_tw_tensor = torch.zeros([args.iterations, num_paras, 10])
     tw_tensor = torch.zeros([args.iterations, num_paras, 10])
 
+    acc_nw_vec = torch.zeros([args.iterations, num_paras])
+    f1_nw_vec = torch.zeros([args.iterations, num_paras])
+    accp_nw_tensor = torch.zeros([args.iterations, num_paras, 10])
+    nw_tensor = torch.zeros([args.iterations, num_paras, 10])
+
     if (args.shift_type == 3) or (args.shift_type == 4):
         alpha = np.ones(10) * args.shift_para
         prob = np.random.dirichlet(alpha)
@@ -494,12 +499,20 @@ def main():
                 f1_w2_vec[k,l,h] = f1 
                 accp_w2_tensor[k,l, h, :] = torch.tensor(acc_per)
 
-            print('Using true weight ')
-            w = true_w
-            acc, f1, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
-            acc_tw_vec[k,l] = acc
-            f1_tw_vec[k,l] = f1 
-            accp_tw_tensor[k,l, :] = torch.tensor(acc_per)
+        print('Using true weight ')
+        w = true_w
+        acc, f1, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
+        acc_tw_vec[k,l] = acc
+        f1_tw_vec[k,l] = f1 
+        accp_tw_tensor[k,l, :] = torch.tensor(acc_per)
+
+        print('Unweighted Training')
+        w = np.ones(10)
+        acc, f1, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
+        acc_nw_vec[k,l] = acc
+        f1_nw_vec[k,l] = f1 
+        accp_nw_tensor[k,l, :] = torch.tensor(acc_per)
+
 
 
     torch.save(acc_w2_vec, 'acc_w2.pt')
@@ -511,6 +524,12 @@ def main():
     torch.save(f1_tw_vec, 'f1_tw.pt')
     torch.save(tw_tensor, 'tw.pt')
     torch.save(accp_tw_tensor, 'tw_accp.pt')
+
+    torch.save(acc_nw_vec, 'acc_nw.pt')
+    torch.save(f1_nw_vec, 'f1_nw.pt')
+    torch.save(nw_tensor, 'nw.pt')
+    torch.save(accp_nw_tensor, 'nw_accp.pt')
+
 
 
 
