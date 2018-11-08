@@ -330,15 +330,20 @@ def main():
     w2_tensor = torch.zeros([args.iterations, num_paras, num_labda, 10])
 
 
-    acc_tw_vec = torch.zeros([args.iterations, num_paras])
-    f1_tw_vec = torch.zeros([args.iterations, num_paras])
-    accp_tw_tensor = torch.zeros([args.iterations, num_paras, 10])
-    tw_tensor = torch.zeros([args.iterations, num_paras, 10])
+    acc_tw_vec = torch.zeros([num_paras])
+    f1_tw_vec = torch.zeros([num_paras])
+    accp_tw_tensor = torch.zeros([num_paras, 10])
+    tw_tensor = torch.zeros([num_paras, 10])
 
-    acc_nw_vec = torch.zeros([args.iterations, num_paras])
-    f1_nw_vec = torch.zeros([args.iterations, num_paras])
-    accp_nw_tensor = torch.zeros([args.iterations, num_paras, 10])
-    nw_tensor = torch.zeros([args.iterations, num_paras, 10])
+    acc_nw_vec = torch.zeros([num_paras])
+    f1_nw_vec = torch.zeros([num_paras])
+    accp_nw_tensor = torch.zeros([num_paras, 10])
+    nw_tensor = torch.zeros([num_paras, 10])
+
+    acc_w1_vec = torch.zeros([args.iterations, num_paras])
+    f1_w1_vec = torch.zeros([args.iterations, num_paras])
+    accp_w1_tensor = torch.zeros([args.iterations, num_paras, 10])
+    w1_tensor = torch.zeros([args.iterations, num_paras, 10])
 
     if (args.shift_type == 3) or (args.shift_type == 4):
         alpha = np.ones(10) * args.shift_para
@@ -453,7 +458,7 @@ def main():
 
             # compute the true w
             true_w = compute_true_w(train_labels, test_labels, n_class, m_train, m_test)
-            tw_tensor[k,l,:] = torch.tensor(true_w)
+            tw_tensor[l,:] = torch.tensor(true_w)
             print('True w is', true_w)
 
             # theta_max = np.linalg.norm(true_w)
@@ -499,19 +504,26 @@ def main():
                 f1_w2_vec[k,l,h] = f1 
                 accp_w2_tensor[k,l, h, :] = torch.tensor(acc_per)
 
+            print('Using inverse weight')
+            w = w1
+            acc, f1, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
+            acc_w1_vec[k,l] = acc
+            f1_w1_vec[k,l] = f1 
+            accp_w1_tensor[k,l, :] = torch.tensor(acc_per)
+
         print('Using true weight ')
         w = true_w
         acc, f1, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
-        acc_tw_vec[k,l] = acc
-        f1_tw_vec[k,l] = f1 
-        accp_tw_tensor[k,l, :] = torch.tensor(acc_per)
+        acc_tw_vec[l] = acc
+        f1_tw_vec[l] = f1 
+        accp_tw_tensor[l, :] = torch.tensor(acc_per)
 
         print('Unweighted Training')
         w = np.ones(10)
         acc, f1, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
-        acc_nw_vec[k,l] = acc
-        f1_nw_vec[k,l] = f1 
-        accp_nw_tensor[k,l, :] = torch.tensor(acc_per)
+        acc_nw_vec[l] = acc
+        f1_nw_vec[l] = f1 
+        accp_nw_tensor[l, :] = torch.tensor(acc_per)
 
 
 
@@ -529,6 +541,11 @@ def main():
     torch.save(f1_nw_vec, 'f1_nw.pt')
     torch.save(nw_tensor, 'nw.pt')
     torch.save(accp_nw_tensor, 'nw_accp.pt')
+
+    torch.save(acc_w1_vec, 'acc_w1.pt')
+    torch.save(f1_w1_vec, 'f1_w1.pt')
+    torch.save(w1_tensor, 'w1.pt')
+    torch.save(accp_w1_tensor, 'w1_accp.pt')
 
 
 
