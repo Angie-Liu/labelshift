@@ -210,7 +210,7 @@ def train_validate_test(args, device, use_cuda, w, train_model, init_state, trai
     train_model.load_state_dict(checkpoint['model'])
     predictions, acc, _ = test(args, train_model, device, test_loader)
     f1 = f1_score(test_labels, predictions, average='macro') 
-    f2 = f2_score(test_labels, predictions, average = 'micro')
+    f2 = f1_score(test_labels, predictions, average = 'micro')
     acc_per_class = acc_perclass(test_labels, predictions, n_class) 
     print('F1-score-macro:', f1)
     print('F1-score-micro:', f2)
