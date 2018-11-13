@@ -129,7 +129,7 @@ def compute_w_opt(C_yy,mu_y,mu_train_y, rho):
     prob = cp.Problem(objective, constraints)
 
     result = prob.solve()
-    w = 1 + theta.value
+    w = 1 + theta.value 
     print('Estimated w is', w)
    
     return w
@@ -210,9 +210,11 @@ def train_validate_test(args, device, use_cuda, w, train_model, init_state, trai
     train_model.load_state_dict(checkpoint['model'])
     predictions, acc, _ = test(args, train_model, device, test_loader)
     f1 = f1_score(test_labels, predictions, average='macro') 
+    f2 = f2_score(test_labels, predictions, average = 'micro')
     acc_per_class = acc_perclass(test_labels, predictions, n_class) 
-    print('F1-score:', f1)
-    return acc, f1, acc_per_class
+    print('F1-score-macro:', f1)
+    print('F1-score-micro:', f2)
+    return acc, f1, f2,  acc_per_class
 
 
 def main():
@@ -258,7 +260,7 @@ def main():
     # get fixed ho before trying different shift
    
     if args.data_name  == 'mnist':
-        raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 1, 0.9, target_label=9, train=True, download=True,
+        raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 1, 0, target_label=9, train=True, download=True,
             transform=transforms.Compose([
                            transforms.ToTensor(),
                            transforms.Normalize((0.1307,), (0.3081,))
@@ -316,22 +318,26 @@ def main():
 
     acc_w2_vec = torch.zeros([args.iterations, num_paras])
     f1_w2_vec = torch.zeros([args.iterations, num_paras])
+    f2_w2_vec = torch.zeros([args.iterations, num_paras])
     accp_w2_tensor = torch.zeros([args.iterations, num_paras, 10])
 
     w2_tensor = torch.zeros([args.iterations, num_paras, 10])
 
     acc_w1_vec = torch.zeros([args.iterations, num_paras])
     f1_w1_vec = torch.zeros([args.iterations, num_paras])
+    f2_w1_vec = torch.zeros([args.iterations, num_paras])
     accp_w1_tensor = torch.zeros([args.iterations, num_paras, 10])
     w1_tensor = torch.zeros([args.iterations, num_paras, 10])
 
     acc_tw_vec = torch.zeros([args.iterations, num_paras])
     f1_tw_vec = torch.zeros([args.iterations, num_paras])
+    f2_tw_vec = torch.zeros([args.iterations, num_paras])
     accp_tw_tensor = torch.zeros([args.iterations, num_paras, 10])
     tw_tensor = torch.zeros(args.iterations, num_paras, 10)
 
     acc_nw_vec = torch.zeros([args.iterations, num_paras])
     f1_nw_vec = torch.zeros([args.iterations, num_paras])
+    f2_nw_vec = torch.zeros([args.iterations, num_paras])
     accp_nw_tensor = torch.zeros([args.iterations, num_paras, 10])
 
 
@@ -459,7 +465,7 @@ def main():
             train_loader = data.DataLoader(data.Subset(train_data, range(m_validate, m_train)),
                 batch_size=args.batch_size, shuffle=True, **kwargs)
 
-            acc, f1, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
+            acc, f1, f2, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
             acc_w2_vec[k,l] = acc
             f1_w2_vec[k,l] = f1 
             accp_w2_tensor[k,l, :] = torch.tensor(acc_per)
@@ -467,10 +473,11 @@ def main():
             # Re-train unweighted ERM using full training data, to ensure fair comparison
             print('\nTraining using full training data (unweighted), testing on test set.')
             w = np.ones((10,1))
-            acc, f1, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
+            acc, f1, f2, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
             
             acc_nw_vec[k,l] = acc
             f1_nw_vec[k,l] = f1 
+            f2_nw_vec[k,l] = f2
             accp_nw_tensor[k,l, :] = torch.tensor(acc_per)
 
  
@@ -478,38 +485,44 @@ def main():
                 # Compare with using w1
                 w = w1
                 print('\nComparing with using inverse in weight estimation, testing on test set.')
-                acc, f1, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
+                acc, f1, f2, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
             
 
             acc_w1_vec[k,l] = acc
-            f1_w1_vec[k,l] = f1 
+            f1_w1_vec[k,l] = f1
+            f2_w1_vec[k,l] = f2
             accp_w1_tensor[k,l, :] = torch.tensor(acc_per)
       
             print('\nComparing with using true weight, testing on test set.')
             w = true_w
-            acc, f1, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
+            acc, f1, f2, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
             acc_tw_vec[k,l] = acc
             f1_tw_vec[k,l] = f1
+            f2_tw_vec[k,l] = f2
             accp_tw_tensor[k,l, :] = torch.tensor(acc_per)
 
             
     torch.save(acc_w2_vec, 'acc_w2.pt')
     torch.save(f1_w2_vec, 'f1_w2.pt')
+    torch.save(f2_w2_vec, 'f2_w2.pt')
     torch.save(w2_tensor, 'w2.pt')
     torch.save(accp_w2_tensor, 'w2_accp.pt')
 
     torch.save(acc_w1_vec, 'acc_w1.pt')
     torch.save(f1_w1_vec, 'f1_w1.pt')
+    torch.save(f2_w1_vec, 'f2_w1.pt')
     torch.save(w1_tensor, 'w1.pt')
     torch.save(accp_w1_tensor, 'w1_accp.pt')
 
     torch.save(acc_tw_vec, 'acc_tw.pt')
     torch.save(f1_tw_vec, 'f1_tw.pt')
+    torch.save(f2_tw_vec, 'f2_tw.pt')
     torch.save(tw_tensor, 'tw.pt')
     torch.save(accp_tw_tensor, 'tw_accp.pt')
 
     torch.save(acc_nw_vec, 'acc_nw.pt')
     torch.save(f1_nw_vec, 'f1_nw.pt')
+    torch.save(f2_nw_vec, 'f2_nw.pt')
     torch.save(accp_nw_tensor, 'nw_accp.pt')
 
 
