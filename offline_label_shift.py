@@ -470,16 +470,6 @@ def main():
             f1_w2_vec[k,l] = f1 
             accp_w2_tensor[k,l, :] = torch.tensor(acc_per)
 
-            # Re-train unweighted ERM using full training data, to ensure fair comparison
-            print('\nTraining using full training data (unweighted), testing on test set.')
-            w = np.ones((10,1))
-            acc, f1, f2, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
-            
-            acc_nw_vec[k,l] = acc
-            f1_nw_vec[k,l] = f1 
-            f2_nw_vec[k,l] = f2
-            accp_nw_tensor[k,l, :] = torch.tensor(acc_per)
-
  
             if np.abs(mse1 - mse2) > 0.01:
                 # Compare with using w1
@@ -492,6 +482,16 @@ def main():
             f1_w1_vec[k,l] = f1
             f2_w1_vec[k,l] = f2
             accp_w1_tensor[k,l, :] = torch.tensor(acc_per)
+
+            # Re-train unweighted ERM using full training data, to ensure fair comparison
+            print('\nTraining using full training data (unweighted), testing on test set.')
+            w = np.ones((10,1))
+            acc, f1, f2, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
+            
+            acc_nw_vec[k,l] = acc
+            f1_nw_vec[k,l] = f1 
+            f2_nw_vec[k,l] = f2
+            accp_nw_tensor[k,l, :] = torch.tensor(acc_per)
       
             print('\nComparing with using true weight, testing on test set.')
             w = true_w
