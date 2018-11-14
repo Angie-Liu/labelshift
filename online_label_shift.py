@@ -341,7 +341,7 @@ def main():
 
     acc_nw_vec = torch.zeros([num_paras])
     f1_nw_vec = torch.zeros([num_paras])
-    f2_tw_vec = torch.zeros([num_paras])
+    f2_nw_vec = torch.zeros([num_paras])
     accp_nw_tensor = torch.zeros([num_paras, 10])
     nw_tensor = torch.zeros([num_paras, 10])
 
