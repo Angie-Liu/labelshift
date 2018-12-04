@@ -136,6 +136,46 @@ def compute_w_opt(C_yy,mu_y,mu_train_y, rho):
     #print(constraints[0].dual_value)
     return w
 
+def compute_w_opt_4(C_yy,mu_y,mu_train_y, rho):
+    '''
+    optimization problem in squared norm in (4)
+    '''
+    n = C_yy.shape[0]
+    theta = cp.Variable(n)
+    b = mu_y - mu_train_y
+    objective = cp.Minimize(cp.sum_squares(C_yy*theta - b) + rho* cp.pnorm(theta))
+    constraints = [-1 <= theta]
+    prob = cp.Problem(objective, constraints)
+
+    # The optimal objective value is returned by `prob.solve()`.
+    result = prob.solve()
+    # The optimal value for x is stored in `x.value`.
+    # print(theta.value)
+    w = 1 + theta.value
+    print('Estimated w is', w)
+    #print(constraints[0].dual_value)
+    return w
+
+def compute_w_opt_2(C_yy,mu_y,mu_train_y, rho):
+    '''
+    optimization TLS
+    '''
+    n = C_yy.shape[0]
+    theta = cp.Variable(n)
+    b = mu_y - mu_train_y
+    objective = cp.Minimize(cp.sum_squares(C_yy*theta - b ) + rho* cp.sum_squares(theta))
+    constraints = [-1 <= theta]
+    prob = cp.Problem(objective, constraints)
+
+    # The optimal objective value is returned by `prob.solve()`.
+    result = prob.solve()
+    # The optimal value for x is stored in `x.value`.
+    # print(theta.value)
+    w = 1 + theta.value
+    print('Estimated w is', w)
+    #print(constraints[0].dual_value)
+    return w
+
 def compute_3deltaC(n_class, n_train, delta):
     rho = 3*(2*np.log(2*n_class/delta)/(3*n_train) + np.sqrt(2*np.log(2*n_class/delta)/n_train))
     return rho 
@@ -150,6 +190,23 @@ def choose_alpha(n_class, C_yy, mu_y, mu_y_train, rho, true_w):
     i = np.argmin(mse2)
     print("mse2, ", mse2)
     return alpha[i]
+
+def validate_alpha(n_class, C_yy, mu_y, mu_y_train, rho):
+
+    b = mu_y - mu_y_train
+    gamma = [0.1, 0.01, 0.001, 0.0001, 0.00001, 0.000001]
+    w2 = np.zeros((len(gamma), n_class))
+    for i in range(len(gamma)):
+        w2[i, :] = compute_w_opt_4(C_yy, mu_y, mu_y_train, gamma[i])
+    theta = w2 - 1
+    obj3 = np.zeros(len(gamma))
+    for i in range(len(gamma)):
+        obj3[i] = np.linalg.norm(C_yy*theta[i, :] - b) + 0.001* rho* np.linalg.norm(theta[i, :])
+    
+    print('obj3', obj3)
+    index = np.argmin(obj3)
+    return w2[index, :]
+
 
 def compute_true_w(train_labels, test_labels, n_class, m_train, m_test):
      # compute the true w
@@ -176,30 +233,32 @@ def acc_perclass(y, predictions, n_class):
 
 def train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class):
     w = torch.tensor(w)
-   
+    train_model.load_state_dict(init_state)
     if use_cuda:
         w = w.cuda().float()
+        train_model.cuda()
     else:
         w = w.float()
     
     best_loss = 10
     # model = train_model.to(device)#ConvNet().to(device)
-    train_model.load_state_dict(init_state)
+    
     optimizer = optim.SGD(train_model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
     for epoch in range(1, args.epochs_training + 1):
         train(args, train_model, device, train_loader, optimizer, epoch, weight=w) 
-        # validation
-        _, _, loss = test(args, train_model, device, validate_loader, weight=w)
         # save checkpoint
-        if  loss < best_loss and epoch > args.epochs_validation:
-            print('saving model')
-            state = {
-                'model': train_model.state_dict(),
-                }
-            if not os.path.isdir('checkpoint'):
-                os.mkdir('checkpoint')
-            torch.save(state, './checkpoint/ckpt.pt')
-            best_loss = loss
+        if epoch > args.epochs_validation:
+            # validation
+            _, _, loss = test(args, train_model, device, validate_loader, weight=w)
+            if loss < best_loss: 
+                print('saving model')
+                state = {
+                    'model': train_model.state_dict(),
+                    }
+                if not os.path.isdir('checkpoint'):
+                    os.mkdir('checkpoint')
+                torch.save(state, './checkpoint/ckpt.pt')
+                best_loss = loss
         
     print('\nTesting on test set')
     # read checkpoint
@@ -219,8 +278,10 @@ def main():
     parser = argparse.ArgumentParser(description='Blackbox Label Shift')
     parser.add_argument('--data-name', type=str, default='mnist', metavar='N',
                         help='dataset name, mnist or cifar10 (default: mnist)')
-    parser.add_argument('--sample-size', type=int, default=30000, metavar='N',
-                        help='sample size for both training and testing (default: 50000)')
+    parser.add_argument('--training-size', type=int, default=30000, metavar='N',
+                        help='sample size for both training (default: 30000)')
+    parser.add_argument('--testing-size', type=int, default=30000, metavar='N',
+                        help='sample size for testing (default: 30000)')
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=64, metavar='N',
@@ -228,6 +289,8 @@ def main():
     parser.add_argument('--shift-type', type = int, default = 2, metavar = 'N',
                         help = 'Label shift type (default: 2)')
     parser.add_argument('--shift-para', type = float, default = 0.2, metavar = 'N',
+                        help = 'Label shift paramters (default: 0.2)')
+    parser.add_argument('--shift-para-aux', type = float, default = None, metavar = 'N',
                         help = 'Label shift paramters (default: 0.2)')
     parser.add_argument('--model', type = str, default='MLP', metavar='N',
                         help = 'model type to use (default MLP)')
@@ -255,11 +318,14 @@ def main():
         alpha = np.ones(10) * args.shift_para
         prob = np.random.dirichlet(alpha)
         shift_para = prob
+        shift_para_aux = args.shift_para_aux
     else:
         shift_para = args.shift_para
+        shift_para_aux = args.shift_para_aux
+        
 
     if args.data_name  == 'mnist':
-        raw_data = MNIST_SHIFT('data/mnist', args.sample_size, args.shift_type, shift_para, target_label=2, train=True, download=True,
+        raw_data = MNIST_SHIFT('data/mnist', args.training_size, args.testing_size, args.shift_type, shift_para, parameter_aux=shift_para_aux, target_label=2, train=True, download=True,
             transform=transforms.Compose([
                            transforms.ToTensor(),
                            transforms.Normalize((0.1307,), (0.3081,))
@@ -270,7 +336,7 @@ def main():
         model = train_model.to(device)
         init_state = copy.deepcopy(train_model.state_dict())
     elif args.data_name == 'cifar10':
-        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, args.shift_type, shift_para, target_label=2,
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.training_size, args.testing_size, args.shift_type, shift_para, parameter_aux=shift_para_aux, target_label=2,
             transform=transforms.Compose([
                         transforms.RandomCrop(32, padding=4),
                         transforms.RandomHorizontalFlip(),
@@ -364,17 +430,24 @@ def main():
 
     rho = compute_3deltaC(n_class, m_train, 0.05)
     #alpha = choose_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho, true_w)
-    alpha = 0.001
+    alpha = 0.01
     w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
     mse2 = np.sum(np.square(true_w - w2))/n_class
 
+    w3 = compute_w_opt_2(C_yy, mu_y, mu_y_train_hat, alpha * rho)
+    mse3 = np.sum(np.square(true_w - w3))/n_class
+
+    w4 = validate_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho)
+    mse4 = np.sum(np.square(true_w - w4))/n_class
+
     print('Mean square error, ', mse1)
     print('Mean square error, ', mse2)
-
+    print('Mean square error, ', mse3)
+    print('Mean square error, ', mse4)
     
     m_validate = int(0.1*m_train)
     validate_loader = data.DataLoader(data.Subset(train_data, range(m_validate)),
-        batch_size=args.batch_size, shuffle=True, **kwargs)
+        batch_size=args.batch_size, shuffle=False, **kwargs)
     # 10% validation set
     train_loader = data.DataLoader(data.Subset(train_data, range(m_validate, m_train)),
         batch_size=args.batch_size, shuffle=True, **kwargs)
