@@ -162,6 +162,17 @@ def compute_true_w(train_labels, test_labels, n_class, m_train, m_test):
     print('True w is', true_w)
     return true_w
 
+def compute_naive_w(train_labels, n_class, m_train):
+    # compute naive label ratio just using the training labels
+    mu_y_train = np.zeros(n_class)
+    for i in range(n_class):
+        mu_y_train[i] = float(len(np.where(train_labels == i)[0]))/m_train
+    mu_y_test = np.zeros(n_class)
+    true_w = mu_y_test/mu_y_train
+    print('Naive w is', true_w)
+    return true_w
+
+
 def acc_perclass(y, predictions, n_class):
 
     acc = np.zeros(n_class)
@@ -224,8 +235,10 @@ def main():
                         help='number of iterations to plot comparison plot (default: 20)')
     parser.add_argument('--data-name', type=str, default='mnist', metavar='N',
                         help='dataset name, mnist or cifar10 (default: mnist)')
-    parser.add_argument('--sample-size', type=int, default=30000, metavar='N',
-                        help='sample size for both training and testing (default: 50000)')
+    parser.add_argument('--training-size', type=int, default=30000, metavar='N',
+                        help='sample size for both training and testing (default: 30000)')
+    parser.add_argument('--testing-size', type=int, default=30000, metavar='N',
+                        help='sample size for both training and testing (default: 30000)')
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
@@ -234,6 +247,8 @@ def main():
                         help = 'Label shift type (default: 2)')
     parser.add_argument('--shift-para', nargs='+', type = float,
                         help = 'Required: Label shift paramters (a list)', required=True)
+    parser.add_argument('--shift-para-aux', type = float, default = None, metavar = 'N',
+                        help = 'Label shift paramters (default: 0.2)')
     parser.add_argument('--model', type = str, default='MLP', metavar='N',
                         help = 'model type to use for cifar10 (default MLP)')
     parser.add_argument('--epochs-estimation', type=int, default=10, metavar='N',
@@ -260,7 +275,7 @@ def main():
     # get fixed ho before trying different shift
    
     if args.data_name  == 'mnist':
-        raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 1, 0, target_label=9, train=True, download=True,
+        raw_data = MNIST_SHIFT('data/mnist', args.training_size, args.testing_size, 1, 0.5, target_label=9, train=True, download=True,
             transform=transforms.Compose([
                            transforms.ToTensor(),
                            transforms.Normalize((0.1307,), (0.3081,))
@@ -269,7 +284,7 @@ def main():
         base_model = Net(D_in, 256, 10)
         
     elif args.data_name == 'cifar10':
-        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 1, 0, target_label=2,
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.training_size, args.testing_size, 1, 0, target_label=2,
             transform=transforms.Compose([
                         transforms.RandomCrop(32, padding=4),
                         transforms.RandomHorizontalFlip(),
@@ -298,19 +313,19 @@ def main():
     test_labels = raw_data.get_test_label()
     train_labels = raw_data.get_train_label()
 
-    # finish data preprocessing
-    # estimate weights using training and validation set
-    train_loader = data.DataLoader(train_data,
-        batch_size=args.batch_size, shuffle=True, **kwargs)
+    # # finish data preprocessing
+    # # estimate weights using training and validation set
+    # train_loader = data.DataLoader(train_data,
+    #     batch_size=args.batch_size, shuffle=True, **kwargs)
     
-    base_model = base_model.to(device)
-    #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
-    optimizer = optim.SGD(base_model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
-    print('\nTraining using training_data1, testing on training_data2 to estimate weights.') 
-    for epoch in range(1, args.epochs_estimation + 1):
-        train(args, base_model, device, train_loader, optimizer, epoch)
+    # base_model = base_model.to(device)
+    # #model = ResNet18(**kwargs).to(device)#ConvNet().to(device)
+    # optimizer = optim.SGD(base_model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
+    # print('\nTraining using training_data1, testing on training_data2 to estimate weights.') 
+    # for epoch in range(1, args.epochs_estimation + 1):
+    #     train(args, base_model, device, train_loader, optimizer, epoch)
 
-    print("\nfinished learning H_0")
+    # print("\nfinished learning H_0")
 
     num_paras = len(args.shift_para)
     print(num_paras)
@@ -340,6 +355,14 @@ def main():
     f2_nw_vec = torch.zeros([args.iterations, num_paras])
     accp_nw_tensor = torch.zeros([args.iterations, num_paras, 10])
 
+    if args.shift_type == 7:
+        acc_w3_vec = torch.zeros([args.iterations, num_paras])
+        f1_w3_vec = torch.zeros([args.iterations, num_paras])
+        f2_w3_vec = torch.zeros([args.iterations, num_paras])
+        accp_w3_tensor = torch.zeros([args.iterations, num_paras, 10])
+
+
+
 
     for l in range(num_paras):
 
@@ -347,13 +370,15 @@ def main():
             alpha = np.ones(10) * args.shift_para[l]
             prob = np.random.dirichlet(alpha)
             shift_para = prob
+            shift_para_aux = args.shift_para_aux
         else:
             shift_para = args.shift_para[l]
+            shift_para_aux = args.shift_para_aux
 
         for k in range(args.iterations):
       
             if args.data_name  == 'mnist':
-                raw_data = MNIST_SHIFT('data/mnist', args.sample_size, args.shift_type, shift_para, target_label=2, train=True, download=True,
+                raw_data = MNIST_SHIFT('data/mnist', args.training_size, args.testing_size, args.shift_type, shift_para, parameter_aux = shift_para_aux, target_label=2, train=True, download=True,
                     transform=transforms.Compose([
                                    transforms.ToTensor(),
                                    transforms.Normalize((0.1307,), (0.3081,))
@@ -363,7 +388,7 @@ def main():
                 train_model = train_model.to(device)
                 init_state = copy.deepcopy(train_model.state_dict())
             elif args.data_name == 'cifar10':
-                raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, args.shift_type, shift_para, target_label=2,
+                raw_data = CIFAR10_SHIFT('data/cifar10', args.training_size, args.testing_size, args.shift_type, shift_para, parameter_aux = shift_para_aux, target_label=2,
                     transform=transforms.Compose([
                                 transforms.RandomCrop(32, padding=4),
                                 transforms.RandomHorizontalFlip(),
@@ -398,64 +423,64 @@ def main():
             train_labels = raw_data.get_train_label()
 
 
-            # finish data preprocessing
-            # estimate weights using training and validation set
-            test_loader = data.DataLoader(train_data,
-                batch_size=args.batch_size, shuffle=False, **kwargs)
+            # # finish data preprocessing
+            # # estimate weights using training and validation set
+            # test_loader = data.DataLoader(train_data,
+            #     batch_size=args.batch_size, shuffle=False, **kwargs)
             
             
-            print('\nTesting on training_data2 to estimate C_yy.')
-            predictions, acc, _ = test(args, base_model, device, test_loader)
+            # print('\nTesting on training_data2 to estimate C_yy.')
+            # predictions, acc, _ = test(args, base_model, device, test_loader)
 
-            # compute C_yy 
-            C_yy = np.zeros((n_class, n_class)) 
-            #print(m_train_v)
-            predictions = np.concatenate(predictions)
+            # # compute C_yy 
+            # C_yy = np.zeros((n_class, n_class)) 
+            # #print(m_train_v)
+            # predictions = np.concatenate(predictions)
            
-            for i in range(n_class):
-                for j in range(n_class):
-                    C_yy[i,j] = float(len(np.where((predictions== i)&(train_labels==j))[0]))/m_train
+            # for i in range(n_class):
+            #     for j in range(n_class):
+            #         C_yy[i,j] = float(len(np.where((predictions== i)&(train_labels==j))[0]))/m_train
                 
-            mu_y_train_hat = np.zeros(n_class)
-            for i in range(n_class):
-                mu_y_train_hat[i] = float(len(np.where(predictions == i)[0]))/m_train
+            # mu_y_train_hat = np.zeros(n_class)
+            # for i in range(n_class):
+            #     mu_y_train_hat[i] = float(len(np.where(predictions == i)[0]))/m_train
 
-            # print(mu_y_train)
-            # print(C_yy)
-            # prediction on x_test to estimate mu_y
-            print('\nTesting on test data to estimate mu_y.')
+            # # print(mu_y_train)
+            # # print(C_yy)
+            # # prediction on x_test to estimate mu_y
+            # print('\nTesting on test data to estimate mu_y.')
             test_loader = data.DataLoader(test_data,
                 batch_size=args.batch_size, shuffle=False, **kwargs)
-            predictions, acc, _ = test(args, base_model, device, test_loader)
-            mu_y = np.zeros(n_class)
-            for i in range(n_class):
-                mu_y[i] = float(len(np.where(predictions == i)[0]))/m_test
+            # predictions, acc, _ = test(args, base_model, device, test_loader)
+            # mu_y = np.zeros(n_class)
+            # for i in range(n_class):
+            #     mu_y[i] = float(len(np.where(predictions == i)[0]))/m_test
 
-            # print(mu_y)
+            # # print(mu_y)
 
-            w1 = compute_w_inv(C_yy, mu_y)
-            w1_tensor[k,l,:] = torch.tensor(w1)
+            # w1 = compute_w_inv(C_yy, mu_y)
+            # w1_tensor[k,l,:] = torch.tensor(w1)
 
             # compute the true w
             true_w = compute_true_w(train_labels, test_labels, n_class, m_train, m_test)
             tw_tensor[k,l,:] = torch.tensor(true_w)
             print('True w is', true_w)
-            mse1 = np.sum(np.square(true_w - w1))/n_class
+            # mse1 = np.sum(np.square(true_w - w1))/n_class
 
-            rho = compute_3deltaC(n_class, m_train, 0.05)
-            #alpha = choose_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho, true_w)
-            alpha = 0.001
-            w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
-            w2_tensor[k,l,:] = torch.tensor(w2)
-            mse2 = np.sum(np.square(true_w - w2))/n_class
+            # rho = compute_3deltaC(n_class, m_train, 0.05)
+            # #alpha = choose_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho, true_w)
+            # alpha = 0.001
+            # w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
+            # w2_tensor[k,l,:] = torch.tensor(w2)
+            # mse2 = np.sum(np.square(true_w - w2))/n_class
 
-            print('Mean square error, ', mse1)
-            print('Mean square error, ', mse2)
+            # print('Mean square error, ', mse1)
+            # print('Mean square error, ', mse2)
 
-            w = w2
+            # w = w2
 
-            # Learning IW ERM
-            print('\nTraining using full training data with estimated weights, testing on test set.')
+            # # Learning IW ERM
+            # print('\nTraining using full training data with estimated weights, testing on test set.')
            
             
             m_validate = int(0.1*m_train)
@@ -465,23 +490,23 @@ def main():
             train_loader = data.DataLoader(data.Subset(train_data, range(m_validate, m_train)),
                 batch_size=args.batch_size, shuffle=True, **kwargs)
 
-            acc, f1, f2, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
-            acc_w2_vec[k,l] = acc
-            f1_w2_vec[k,l] = f1 
-            accp_w2_tensor[k,l, :] = torch.tensor(acc_per)
+            # acc, f1, f2, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
+            # acc_w2_vec[k,l] = acc
+            # f1_w2_vec[k,l] = f1 
+            # accp_w2_tensor[k,l, :] = torch.tensor(acc_per)
 
  
-            if np.abs(mse1 - mse2) > 0.01:
-                # Compare with using w1
-                w = w1
-                print('\nComparing with using inverse in weight estimation, testing on test set.')
-                acc, f1, f2, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
+            # if np.abs(mse1 - mse2) > 0.01:
+            #     # Compare with using w1
+            #     w = w1
+            #     print('\nComparing with using inverse in weight estimation, testing on test set.')
+            #     acc, f1, f2, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
             
 
-            acc_w1_vec[k,l] = acc
-            f1_w1_vec[k,l] = f1
-            f2_w1_vec[k,l] = f2
-            accp_w1_tensor[k,l, :] = torch.tensor(acc_per)
+            # acc_w1_vec[k,l] = acc
+            # f1_w1_vec[k,l] = f1
+            # f2_w1_vec[k,l] = f2
+            # accp_w1_tensor[k,l, :] = torch.tensor(acc_per)
 
             # Re-train unweighted ERM using full training data, to ensure fair comparison
             print('\nTraining using full training data (unweighted), testing on test set.')
@@ -501,6 +526,15 @@ def main():
             f2_tw_vec[k,l] = f2
             accp_tw_tensor[k,l, :] = torch.tensor(acc_per)
 
+            if args.shift_type == 7:
+                w3 = compute_naive_w(train_labels, n_class, m_train)
+                w = w3
+
+                acc, f1, f2, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
+                acc_w3_vec[k,l] = acc
+                f1_w3_vec[k,l] = f1
+                f2_w3_vec[k,l] = f2
+                accp_w3_tensor[k,l, :] = torch.tensor(acc_per)
             
     torch.save(acc_w2_vec, 'acc_w2.pt')
     torch.save(f1_w2_vec, 'f1_w2.pt')
@@ -524,6 +558,13 @@ def main():
     torch.save(f1_nw_vec, 'f1_nw.pt')
     torch.save(f2_nw_vec, 'f2_nw.pt')
     torch.save(accp_nw_tensor, 'nw_accp.pt')
+
+    if args.shift_type == 7:
+        torch.save(acc_w3_vec, 'acc_w3.pt')
+        torch.save(f1_w3_vec, 'f1_w3.pt')
+        torch.save(f2_w3_vec, 'f2_w3.pt')
+        torch.save(accp_w3_tensor, 'w3_accp.pt')
+
 
 
 

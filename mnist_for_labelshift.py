@@ -39,14 +39,18 @@ class MNIST_SHIFT(data.Dataset):
                '5 - five', '6 - six', '7 - seven', '8 - eight', '9 - nine']
     class_to_idx = {_class: i for i, _class in enumerate(classes)}
 
-    def __init__(self, root, sample_size, shift_type, parameter, target_label=None, train=True, transform=None, target_transform=None, download=False):
+    def __init__(self, root, training_size, testing_size, shift_type, parameter, parameter_aux=None, target_label=None, train=True, transform=None, target_transform=None, download=False):
+    
         """
         Converted function from original torch mnist class :
         new parameters:
-        sample_size: int, sample size of both training and testing set
-        shift_type: int, 1 for knock one shift, 2 for tweak one shift and 3 for dirichlet shift
+        training_size: int, sample size of training 
+        testing_size: int, sample size of both training and testing set
+        shift_type: int, 1 for knock one shift on source, 2 for tweak one shift and 3 for dirichlet shift on source
                          4 for dirichlet shift on the test set
                          5 for tweak one shift on the test set
+                         6 for multiclass shift on source
+                         7 for tweak on on both source and target
         parameter: float in [0, 1], delta for knock one shift, delete target_label by delta
                                     or, rho for tweak one shift, set target_label probability as rho, others even
                                     or, alpha for dirichlet shift
@@ -73,16 +77,30 @@ class MNIST_SHIFT(data.Dataset):
         features = features.numpy()
         labels = labels.numpy()
         indices = np.random.permutation(60000)
-        m_test = sample_size
+        if shift_type==1 or shift_type ==2 or shift_type ==3:
 
-        test_indices = indices[0 : m_test]
-        train_indices = indices[m_test :]
+            m_test = testing_size
+
+            test_indices = indices[0 : m_test]
+            train_indices = indices[m_test :]
+        elif shift_type !=7:
+            m_train = training_size
+
+            train_indices = indices[0 : m_train]
+            test_indices = indices[m_train :]
+        else:
+            m_train = 30000
+            m_test = 30000
+            train_indices = indices[0 : m_train]
+            test_indices = indices[m_train :]
+
         test_data = features[(test_indices,)]
         test_labels = labels[(test_indices,)]
 
         train_data = features[(train_indices,)]
         train_labels = labels[(train_indices,)]
-        num_train = len(train_data)
+        
+
 
         if shift_type == 1:
             if target_label == None:
@@ -92,7 +110,7 @@ class MNIST_SHIFT(data.Dataset):
             num_knock = int(num_target * parameter)    
             train_data = np.delete(train_data, indices_target[0:num_knock], 0)
             train_labels = np.delete(train_labels, indices_target[0:num_knock])
-            num_train = len(train_labels)
+            m_train = len(train_labels)
             
         elif shift_type == 2:
             if target_label == None:
@@ -124,7 +142,7 @@ class MNIST_SHIFT(data.Dataset):
             shuffle = np.random.permutation(len(indices_train))
             train_data = train_data[(indices_train[shuffle],)]
             train_labels = train_labels[(indices_train[shuffle],)]
-            num_train = len(train_labels)
+            m_train = len(train_labels)
 
         elif shift_type == 3:
             # use the maximum prob to decide the total number of training samples
@@ -145,7 +163,7 @@ class MNIST_SHIFT(data.Dataset):
             shuffle = np.random.permutation(len(indices_train))
             train_data = train_data[(indices_train[shuffle],)]
             train_labels = train_labels[(indices_train[shuffle],)]
-            num_train = len(train_labels)
+            m_train = len(train_labels)
 
         elif shift_type == 4:
 
@@ -223,27 +241,81 @@ class MNIST_SHIFT(data.Dataset):
             shuffle = np.random.permutation(len(indices_train))
             train_data = train_data[(indices_train[shuffle],)]
             train_labels = train_labels[(indices_train[shuffle],)]
-            num_train = len(train_labels)
+            m_train = len(train_labels)
+        elif shift_type == 7:
+           
+            if parameter < (1.0-parameter)/9 :
+                target_label = (target_label + 1)%10
+            indices_target = np.where(train_labels == target_label)[0]
+            num_target = len(indices_target)    
+            num_train = int(num_target/parameter)
+            #################
+            # num_train = sample_size
+            # num_target = int(num_train * parameter)
+ 
+            num_remain = num_train - num_target
+            # even on other labels
+            num_i = int(num_remain/9)
+            indices_train = np.empty((0,1), dtype = int)
+
+            for i in range(10):
+                indices_i = np.where(train_labels == i)[0]
+                if i != target_label:
+                    indices_i = indices_i[0:num_i] 
+                else:
+                    indices_i = indices_i[0:num_target] 
+                indices_train = np.append(indices_train, indices_i)
+            
+            shuffle = np.random.permutation(len(indices_train))
+            train_data = train_data[(indices_train[shuffle],)]
+            train_labels = train_labels[(indices_train[shuffle],)]
+            m_train = len(train_labels)
+            print(m_train)
+            # testint portion
+
+            if parameter_aux < (1.0-parameter_aux)/9 :
+                target_label = (target_label + 1)%10
+            indices_target = np.where(test_labels == target_label)[0]
+            num_target = len(indices_target)    
+            num_test = int(num_target/parameter_aux)
+            #################
+            # num_train = sample_size
+            # num_target = int(num_train * parameter)
+ 
+            num_remain = num_test - num_target
+            # even on other labels
+            num_i = int(num_remain/9)
+            indices_test = np.empty((0,1), dtype = int)
+            print(num_i)
+            for i in range(10):
+                indices_i = np.where(test_labels == i)[0]
+                if i != target_label:
+                    indices_i = indices_i[0:num_i] 
+                else:
+                    indices_i = indices_i[0:num_target] 
+                indices_test = np.append(indices_test, indices_i)
+            
+            shuffle = np.random.permutation(len(indices_test))
+            test_data = test_data[(indices_test[shuffle],)]
+            test_labels = test_labels[(indices_test[shuffle],)]
+            m_test = len(test_labels)
+            print(m_test)
 
         else:
             raise RuntimeError("Invalid shift type.")
 
-
-        # training and testing has same size
-        if num_train > sample_size:
-            train_data = train_data[range(sample_size)]
-            train_labels = train_labels[range(sample_size)]
-            
-        if m_test > sample_size:
-            test_data = test_data[range(sample_size)]
-            test_labels = test_labels[range(sample_size)]
-            m_test = len(test_labels)
+        train_data = train_data[range(training_size)]
+        train_labels = train_labels[range(training_size)]
+        
+        test_data = test_data[range(testing_size)]
+        test_labels = test_labels[range(testing_size)]
 
         self.data = torch.from_numpy(np.concatenate((test_data, train_data)))
         self.labels = torch.from_numpy(np.concatenate((test_labels, train_labels)))
         self.train_labels = train_labels
         self.test_labels = test_labels
-        self.m_test = m_test
+        self.m_test = testing_size
+        self.m_train = training_size
 
 
     def __getitem__(self, index):

@@ -54,7 +54,7 @@ class CIFAR10_SHIFT(data.Dataset):
         return self.labels
        
 
-    def __init__(self, root, sample_size, shift_type, parameter, target_label=None,
+    def __init__(self, root, training_size, testing_size, shift_type, parameter, parameter_aux=None, target_label=None,
                  transform=None, target_transform=None,
                  download=False):
         """
@@ -122,13 +122,29 @@ class CIFAR10_SHIFT(data.Dataset):
         raw_labels = np.asarray(raw_labels)
         # # creat label shift
         indices = np.random.permutation(60000)
-        m_test = sample_size
 
-        if sample_size > 30000:
+
+        if training_size > 30000 or testing_size > 30000:
             raise RuntimeError("Supported setting is sample size smaller than 30000.")
+         
+        if shift_type==1 or shift_type ==2 or shift_type ==3 or shift_type ==6:
 
-        test_indices = indices[0 : m_test]
-        train_indices = indices[m_test :]
+            m_test = testing_size
+
+            test_indices = indices[0 : m_test]
+            train_indices = indices[m_test :]
+        elif shift_type !=7:
+            m_train = training_size
+
+            train_indices = indices[0 : m_train]
+            test_indices = indices[m_train :]
+        else:
+            m_train = 30000
+            m_test = 30000
+            train_indices = indices[0 : m_train]
+            test_indices = indices[m_train :]
+
+
         test_data = raw_data[(test_indices,)]
         test_labels = raw_labels[(test_indices,)]
 
@@ -141,26 +157,25 @@ class CIFAR10_SHIFT(data.Dataset):
                 raise RuntimeError("There should be a target label for the knock one shift.")
             indices_target = np.where(train_labels == target_label)[0]
             num_target = len(indices_target)
-            num_knock = int(num_target * parameter)
+            num_knock = int(num_target * parameter)    
             train_data = np.delete(train_data, indices_target[0:num_knock], 0)
             train_labels = np.delete(train_labels, indices_target[0:num_knock])
-            num_train = len(train_labels)
+            m_train = len(train_labels)
             
         elif shift_type == 2:
             if target_label == None:
                 raise RuntimeError("There should be a target label for the tweak one shift.")
             # use the number of target label to decide the total number of the training samples
             
-            if parameter < (1.0-parameter)/9 : 
+            if parameter < (1.0-parameter)/9 :
                 target_label = (target_label + 1)%10
             indices_target = np.where(train_labels == target_label)[0]
             num_target = len(indices_target)    
             num_train = int(num_target/parameter)
-
             #################
             # num_train = sample_size
             # num_target = int(num_train * parameter)
-           
+ 
             num_remain = num_train - num_target
             # even on other labels
             num_i = int(num_remain/9)
@@ -172,34 +187,36 @@ class CIFAR10_SHIFT(data.Dataset):
                     indices_i = indices_i[0:num_i] 
                 else:
                     indices_i = indices_i[0:num_target] 
-                indices_train = np.append(indices_train, indices_i)       
-            shuffle = np.random.permutation(len(indices_train))#[0:sample_size]
+                indices_train = np.append(indices_train, indices_i)
+            
+            shuffle = np.random.permutation(len(indices_train))
             train_data = train_data[(indices_train[shuffle],)]
             train_labels = train_labels[(indices_train[shuffle],)]
-            num_train = len(train_labels)
+            m_train = len(train_labels)
 
         elif shift_type == 3:
             # use the maximum prob to decide the total number of training samples
             target_label = np.argmax(parameter)
-            print('Dirichlet shift with prob,', parameter)
+            print(parameter)
 
             indices_target = np.where(train_labels == target_label)[0]
             num_target = len(indices_target)
             prob_max = np.amax(parameter)    
             num_train = int(num_target/prob_max)
             indices_train = np.empty((0,1), dtype = int)
-
             for i in range(10):
                 num_i = int(num_train * parameter[i])
                 indices_i = np.where(train_labels == i)[0]
                 indices_i = indices_i[0:num_i] 
                 indices_train = np.append(indices_train, indices_i)
 
-            shuffle = np.random.permutation(len(indices_train))#[0:sample_size]
+            shuffle = np.random.permutation(len(indices_train))
             train_data = train_data[(indices_train[shuffle],)]
             train_labels = train_labels[(indices_train[shuffle],)]
-            num_train = len(train_labels)
+            m_train = len(train_labels)
+
         elif shift_type == 4:
+
             # use the maximum prob to decide the total number of training samples
             target_label = np.argmax(parameter)
             print('Dirichlet shift with prob,', parameter)
@@ -215,12 +232,11 @@ class CIFAR10_SHIFT(data.Dataset):
                 indices_i = np.where(test_labels == i)[0]
                 indices_i = indices_i[0:num_i] 
                 indices_test = np.append(indices_test, indices_i)   
-            shuffle = np.random.permutation(len(indices_test))#[0:sample_size]
+            shuffle = np.random.permutation(len(indices_test))
             test_data = test_data[(indices_test[shuffle],)]
             test_labels = test_labels[(indices_test[shuffle],)]
             m_test = len(test_labels)
-            # train_data = train_data[range(sample_size)]
-            # train_labels = train_labels[range(sample_size)]
+
         elif shift_type == 5:
             if target_label == None:
                 raise RuntimeError("There should be a target label for the tweak one shift.")
@@ -245,7 +261,7 @@ class CIFAR10_SHIFT(data.Dataset):
                     indices_i = indices_i[0:num_target] 
                 indices_test = np.append(indices_test, indices_i)
             
-            shuffle = np.random.permutation(len(indices_test))#[0:sample_size]
+            shuffle = np.random.permutation(len(indices_test))
             test_data = test_data[(indices_test[shuffle],)]
             test_labels = test_labels[(indices_test[shuffle],)]
             m_test = len(test_labels)
@@ -253,7 +269,7 @@ class CIFAR10_SHIFT(data.Dataset):
         elif shift_type == 6:
             # randomly choose 2 target labels
             target_label = np.linspace(1, parameter, parameter) 
-            para = 0.001
+            para = 0.01
             prob = (1 - len(target_label) *para)/(10 - len(target_label))
             indices_target = np.where(train_labels == target_label[0])[0]
             num_target = len(indices_target)
@@ -275,20 +291,79 @@ class CIFAR10_SHIFT(data.Dataset):
             shuffle = np.random.permutation(len(indices_train))
             train_data = train_data[(indices_train[shuffle],)]
             train_labels = train_labels[(indices_train[shuffle],)]
-            num_train = len(train_labels)
+            m_train = len(train_labels)
+        elif shift_type == 7:
+           
+            if parameter < (1.0-parameter)/9 :
+                target_label = (target_label + 1)%10
+            indices_target = np.where(train_labels == target_label)[0]
+            num_target = len(indices_target)    
+            num_train = int(num_target/parameter)
+            #################
+            # num_train = sample_size
+            # num_target = int(num_train * parameter)
+ 
+            num_remain = num_train - num_target
+            # even on other labels
+            num_i = int(num_remain/9)
+            indices_train = np.empty((0,1), dtype = int)
+
+            for i in range(10):
+                indices_i = np.where(train_labels == i)[0]
+                if i != target_label:
+                    indices_i = indices_i[0:num_i] 
+                else:
+                    indices_i = indices_i[0:num_target] 
+                indices_train = np.append(indices_train, indices_i)
             
+            shuffle = np.random.permutation(len(indices_train))
+            train_data = train_data[(indices_train[shuffle],)]
+            train_labels = train_labels[(indices_train[shuffle],)]
+            m_train = len(train_labels)
+            print(m_train)
+            # testint portion
+
+            if parameter_aux < (1.0-parameter_aux)/9 :
+                target_label = (target_label + 1)%10
+            indices_target = np.where(test_labels == target_label)[0]
+            num_target = len(indices_target)    
+            num_test = int(num_target/parameter_aux)
+            #################
+            # num_train = sample_size
+            # num_target = int(num_train * parameter)
+ 
+            num_remain = num_test - num_target
+            # even on other labels
+            num_i = int(num_remain/9)
+            indices_test = np.empty((0,1), dtype = int)
+            print(num_i)
+            for i in range(10):
+                indices_i = np.where(test_labels == i)[0]
+                if i != target_label:
+                    indices_i = indices_i[0:num_i] 
+                else:
+                    indices_i = indices_i[0:num_target] 
+                indices_test = np.append(indices_test, indices_i)
+            
+            shuffle = np.random.permutation(len(indices_test))
+            test_data = test_data[(indices_test[shuffle],)]
+            test_labels = test_labels[(indices_test[shuffle],)]
+            m_test = len(test_labels)
+            print(m_test)
+
         else:
             raise RuntimeError("Invalid shift type.")
 
-        #training and testing has same size
-        if num_train > sample_size:
-            train_data = train_data[range(sample_size)]
-            train_labels = train_labels[range(sample_size)]
-            
-        if m_test > sample_size:
-            test_data = test_data[range(sample_size)]
-            test_labels = test_labels[range(sample_size)]
-            m_test = len(test_labels)
+        if training_size > m_train:
+            training_size = m_train
+        if testing_size > m_test:
+            testing_size = m_test
+        train_data = train_data[range(training_size)]
+        train_labels = train_labels[range(training_size)]
+        
+        test_data = test_data[range(testing_size)]
+        test_labels = test_labels[range(testing_size)]
+
         features = np.concatenate((test_data, train_data))
         features = features.reshape((-1, 3, 32, 32))
         features = features.transpose((0, 2, 3, 1))  # convert to HWC
@@ -297,7 +372,8 @@ class CIFAR10_SHIFT(data.Dataset):
         self.train_labels = train_labels
         self.test_labels = test_labels
 
-        self.m_test = m_test
+        self.m_test = testing_size
+        self.m_train = training_size
 
 
     def _load_meta(self):
