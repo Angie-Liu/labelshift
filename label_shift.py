@@ -12,7 +12,8 @@ from cifar10_for_labelshift import CIFAR10_SHIFT
 import torchvision
 from resnet import *
 import cvxpy as cp
-from sklearn.metrics import f1_score
+# from sklearn.metrics import f1_score
+from sklearn.metrics import precision_recall_fscore_support
 import os
 import copy
 
@@ -156,24 +157,28 @@ def compute_w_opt_4(C_yy,mu_y,mu_train_y, rho):
     #print(constraints[0].dual_value)
     return w
 
-def compute_w_opt_2(C_yy,mu_y,mu_train_y, rho):
+def compute_w_tls(C_yy,mu_y,mu_train_y):
     '''
     optimization TLS
     '''
     n = C_yy.shape[0]
-    theta = cp.Variable(n)
     b = mu_y - mu_train_y
-    objective = cp.Minimize(cp.sum_squares(C_yy*theta - b ) + rho* cp.sum_squares(theta))
-    constraints = [-1 <= theta]
-    prob = cp.Problem(objective, constraints)
+    obj = np.zeros((n,n+1))
+    obj[0:n, 0:n] = C_yy
+    obj[0:n, -1] = b
+   
+    u, s, vh = np.linalg.svd(obj, full_matrices=True)
+ 
+    vxx = vh[0:n, -1]
+    vyy = vh[-1, -1]
+    theta = -vxx/vyy
+    
+    w = 1 + theta
 
-    # The optimal objective value is returned by `prob.solve()`.
-    result = prob.solve()
-    # The optimal value for x is stored in `x.value`.
-    # print(theta.value)
-    w = 1 + theta.value
+    w[w<=0] = 0
     print('Estimated w is', w)
     #print(constraints[0].dual_value)
+
     return w
 
 def compute_3deltaC(n_class, n_train, delta):
@@ -218,6 +223,16 @@ def compute_true_w(train_labels, test_labels, n_class, m_train, m_test):
         mu_y_test[i] = float(len(np.where(test_labels == i)[0]))/m_test
     true_w = mu_y_test/mu_y_train
     print('True w is', true_w)
+    return true_w
+
+def compute_naive_w(train_labels, n_class, m_train):
+    # compute naive label ratio just using the training labels
+    mu_y_train = np.zeros(n_class)
+    for i in range(n_class):
+        mu_y_train[i] = float(len(np.where(train_labels == i)[0]))/m_train
+    mu_y_test = 0.1*np.ones(n_class)
+    true_w = mu_y_test/mu_y_train
+    print('Naive w is', true_w)
     return true_w
 
 def acc_perclass(y, predictions, n_class):
@@ -266,10 +281,17 @@ def train_validate_test(args, device, use_cuda, w, train_model, init_state, trai
     checkpoint = torch.load('./checkpoint/ckpt.pt')
     train_model.load_state_dict(checkpoint['model'])
     predictions, acc, _ = test(args, train_model, device, test_loader)
-    f1 = f1_score(test_labels, predictions, average='macro') 
+    precision, recall, f1, _ = precision_recall_fscore_support(test_labels, predictions, average='micro') 
+    precision_per_class, recall_per_class, f1_per_class, _ = precision_recall_fscore_support(test_labels, predictions, average=None) 
+    
     acc_per_class = acc_perclass(test_labels, predictions, n_class)
-    print('F1-score:', f1)
+    print('F1-score (micro): ', f1)
+    print('Precision (micro): ', precision)
+    print('Recall (micro): ', recall)
     print('Per class accuracy', acc_per_class)
+    print('Per class precision', precision_per_class)
+    print('Per class recall', recall_per_class)
+    print('Per class f-score ', f1_per_class)
 
 
 
@@ -278,9 +300,9 @@ def main():
     parser = argparse.ArgumentParser(description='Blackbox Label Shift')
     parser.add_argument('--data-name', type=str, default='mnist', metavar='N',
                         help='dataset name, mnist or cifar10 (default: mnist)')
-    parser.add_argument('--training-size', type=int, default=30000, metavar='N',
+    parser.add_argument('--training-size', type=int, default=3000, metavar='N',
                         help='sample size for both training (default: 30000)')
-    parser.add_argument('--testing-size', type=int, default=30000, metavar='N',
+    parser.add_argument('--testing-size', type=int, default=3000, metavar='N',
                         help='sample size for testing (default: 30000)')
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
@@ -434,16 +456,24 @@ def main():
     w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
     mse2 = np.sum(np.square(true_w - w2))/n_class
 
-    w3 = compute_w_opt_2(C_yy, mu_y, mu_y_train_hat, alpha * rho)
+    w3 = compute_w_tls(C_yy, mu_y, mu_y_train_hat)
     mse3 = np.sum(np.square(true_w - w3))/n_class
 
     w4 = validate_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho)
     mse4 = np.sum(np.square(true_w - w4))/n_class
 
-    print('Mean square error, ', mse1)
-    print('Mean square error, ', mse2)
-    print('Mean square error, ', mse3)
-    print('Mean square error, ', mse4)
+    if args.shift_type == 7 :
+
+        w5 = compute_naive_w(train_labels, n_class, m_train)
+        mse5 = np.sum(np.square(true_w - w5))/n_class
+
+        print('MSE(naive weights), ', mse5)
+
+
+    print('MSE (inverse), ', mse1)
+    print('MSE (rlls), ', mse2)
+    print('MSE (TLS), ', mse3)
+    print('MSE (theory), ', mse4)
     
     m_validate = int(0.1*m_train)
     validate_loader = data.DataLoader(data.Subset(train_data, range(m_validate)),
@@ -476,6 +506,11 @@ def main():
     w = np.ones((10,1))
 
     train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
+ 
+    print('\nTraining using full training data (using naive weights), testing on test set.')
+    w = w5
+    train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
+ 
 
 
 

@@ -77,7 +77,7 @@ class MNIST_SHIFT(data.Dataset):
         features = features.numpy()
         labels = labels.numpy()
         indices = np.random.permutation(60000)
-        if shift_type==1 or shift_type ==2 or shift_type ==3:
+        if shift_type==1 or shift_type ==2 or shift_type ==3 or shift_type == 6:
 
             m_test = testing_size
 
@@ -299,10 +299,15 @@ class MNIST_SHIFT(data.Dataset):
             test_data = test_data[(indices_test[shuffle],)]
             test_labels = test_labels[(indices_test[shuffle],)]
             m_test = len(test_labels)
-            print(m_test)
+            
 
         else:
             raise RuntimeError("Invalid shift type.")
+        
+        if m_test < testing_size:
+            testing_size = m_test
+        if m_train < training_size:
+            training_size = m_train
 
         train_data = train_data[range(training_size)]
         train_labels = train_labels[range(training_size)]
