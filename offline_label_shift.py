@@ -282,7 +282,7 @@ def main():
     parser.add_argument('--shift-para-aux', nargs='+', type = float,
                         help = 'Label shift aux paramters (needed for shift-type 7 as target shift param, same size as shift-para)')
     parser.add_argument('--model', type = str, default='MLP', metavar='N',
-                        help = 'model type to use for cifar10 (default MLP)')
+                        help = 'model type to use for cifar10 (Choice of Resnet and MLP, default MLP)')
     parser.add_argument('--epochs-estimation', type=int, default=10, metavar='N',
                         help='number of epochs in weight estimation (default: 10)')
     parser.add_argument('--epochs-training', type=int, default=10, metavar='N',
@@ -308,9 +308,9 @@ def main():
     print('Shift-type:', args.shift_type)
     print('# of shift parameters: ', num_paras)
     print('shift parameters: ', args.shift_para)
-    if args.shift_type is 7:
+    if args.shift_type is 7 or args.shift_type is 6 :
         if args.shift_para_aux is None:
-            print('Target shift para needed!')
+            print('Aux shift para needed!')
             return
         elif len(args.shift_para_aux) != num_paras:
             print('Num of target shift para wrong!')
@@ -477,7 +477,7 @@ def main():
             prob = np.random.dirichlet(alpha)
             shift_para = prob
             shift_para_aux = args.shift_para_aux
-        elif args.shift_type == 7:
+        elif args.shift_type == 7 or args.shift_type == 6:
             shift_para = args.shift_para[l]
             shift_para_aux = args.shift_para_aux[l]
         else:
