@@ -269,7 +269,7 @@ class CIFAR10_SHIFT(data.Dataset):
         elif shift_type == 6:
             # randomly choose 2 target labels
             target_label = np.linspace(1, parameter, parameter) 
-            para = 0.05
+            para = 0.001
             prob = (1 - len(target_label) *para)/(10 - len(target_label))
             indices_target = np.where(train_labels == target_label[0])[0]
             num_target = len(indices_target)
