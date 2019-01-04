@@ -477,9 +477,13 @@ def main():
             prob = np.random.dirichlet(alpha)
             shift_para = prob
             shift_para_aux = args.shift_para_aux
-        else:
+        elif args.shift_type == 7:
             shift_para = args.shift_para[l]
             shift_para_aux = args.shift_para_aux[l]
+        else:
+            shift_para = args.shift_para[l]
+            shift_para_aux = args.shift_para_aux
+
 
         for k in range(args.iterations):
       
