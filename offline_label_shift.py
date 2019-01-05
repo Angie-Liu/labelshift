@@ -575,6 +575,8 @@ def main():
                 # print(mu_y)
 
             m_validate = int(0.1*m_train)
+            test_loader = data.DataLoader(test_data,
+                    batch_size=args.batch_size, shuffle=False, **kwargs)
             validate_loader = data.DataLoader(data.Subset(train_data, range(m_validate)),
                 batch_size=args.batch_size, shuffle=True, **kwargs)
             # 10% validation set
