@@ -619,12 +619,11 @@ def main():
 
                 print('MSE (inverse), ', mse1)
 
-                if np.abs(mse1 - mse2)  > 0.01:
-                    # Compare with using w1
-                    w = w1
-                    print('\nComparing with using inverse in weight estimation, testing on test set.')
-                    acc, precision, recall, f1, acc_per, precision_per, recall_per, f1_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
-                
+                # Compare with using w1
+                w = w1
+                print('\nComparing with using inverse in weight estimation, testing on test set.')
+                acc, precision, recall, f1, acc_per, precision_per, recall_per, f1_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
+            
 
                 acc_w1_vec[k,l] = acc
                 precision_w1_vec[k,l] = precision
