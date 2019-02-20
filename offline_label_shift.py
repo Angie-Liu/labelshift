@@ -340,7 +340,7 @@ def main():
         base_model = Net(D_in, 256, 10)
         
     elif args.data_name == 'cifar10':
-        raw_data = CIFAR10_SHIFT('data/cifar10', args.training_size, args.testing_size, 1, 0, target_label=2,
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.training_size, args.testing_size, 1, 0.5, target_label=2,
             transform=transforms.Compose([
                         transforms.RandomCrop(32, padding=4),
                         transforms.RandomHorizontalFlip(),
