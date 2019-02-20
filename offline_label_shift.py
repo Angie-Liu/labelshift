@@ -327,61 +327,61 @@ def main():
         return
     # get fixed ho before trying different shift
 
-    if 'inverse' in args.methods or 'rlls' in args.methods or 'tls' in args.methods:
+    # if 'inverse' in args.methods or 'rlls' in args.methods or 'tls' in args.methods:
         # training H_0
    
-        if args.data_name  == 'mnist':
-            raw_data = MNIST_SHIFT('data/mnist', args.training_size, args.testing_size, 1, 0, target_label=9, train=True, download=True,
-                transform=transforms.Compose([
-                               transforms.ToTensor(),
-                               transforms.Normalize((0.1307,), (0.3081,))
-                               ]))
-            D_in = 784
-            base_model = Net(D_in, 256, 10)
-            
-        elif args.data_name == 'cifar10':
-            raw_data = CIFAR10_SHIFT('data/cifar10', args.training_size, args.testing_size, 1, 0, target_label=2,
-                transform=transforms.Compose([
-                            transforms.RandomCrop(32, padding=4),
-                            transforms.RandomHorizontalFlip(),
-                            transforms.ToTensor(),
-                            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                            ]), download=True)
-            D_in = 3072
-            base_model = Net(D_in, 512, 10)
-        else:
-            raise RuntimeError("Unsupported dataset")
-
-    # saparate into training and testing
-        m = len(raw_data)
-        m_test = raw_data.get_testsize()
-        print('Test size,', m_test)
-        n_class = 10
-        test_indices = range(m_test)
-        test_data = data.Subset(raw_data, test_indices)
-        train_data = data.Subset(raw_data, range(m_test, m))
-        # saparate into training and validation
-        m_train = m -  m_test
-        # m_train_t = int(m_train/2)
-        print('Training size,', m_train)
-
-        # get labels for future use
-        test_labels = raw_data.get_test_label()
-        train_labels = raw_data.get_train_label()
-
-   
-        # finish data preprocessing
-        # estimate weights using training and validation set
-        train_loader = data.DataLoader(train_data,
-            batch_size=args.batch_size, shuffle=True, **kwargs)
+    if args.data_name  == 'mnist':
+        raw_data = MNIST_SHIFT('data/mnist', args.training_size, args.testing_size, 1, 0, target_label=9, train=True, download=True,
+            transform=transforms.Compose([
+                           transforms.ToTensor(),
+                           transforms.Normalize((0.1307,), (0.3081,))
+                           ]))
+        D_in = 784
+        base_model = Net(D_in, 256, 10)
         
-        base_model = base_model.to(device)
-        optimizer = optim.SGD(base_model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
-        print('\nTraining using training_data1 to estimate weights.') 
-        for epoch in range(1, args.epochs_estimation + 1):
-            train(args, base_model, device, train_loader, optimizer, epoch)
+    elif args.data_name == 'cifar10':
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.training_size, args.testing_size, 1, 0, target_label=2,
+            transform=transforms.Compose([
+                        transforms.RandomCrop(32, padding=4),
+                        transforms.RandomHorizontalFlip(),
+                        transforms.ToTensor(),
+                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                        ]), download=True)
+        D_in = 3072
+        base_model = Net(D_in, 512, 10)
+    else:
+        raise RuntimeError("Unsupported dataset")
 
-        print("\nfinished learning H_0")
+# saparate into training and testing
+    m = len(raw_data)
+    m_test = raw_data.get_testsize()
+    print('Test size,', m_test)
+    n_class = 10
+    test_indices = range(m_test)
+    test_data = data.Subset(raw_data, test_indices)
+    train_data = data.Subset(raw_data, range(m_test, m))
+    # saparate into training and validation
+    m_train = m -  m_test
+    # m_train_t = int(m_train/2)
+    print('Training size,', m_train)
+
+    # get labels for future use
+    test_labels = raw_data.get_test_label()
+    train_labels = raw_data.get_train_label()
+
+
+    # finish data preprocessing
+    # estimate weights using training and validation set
+    train_loader = data.DataLoader(train_data,
+        batch_size=args.batch_size, shuffle=True, **kwargs)
+    
+    base_model = base_model.to(device)
+    optimizer = optim.SGD(base_model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
+    print('\nTraining using training_data1 to estimate weights.') 
+    for epoch in range(1, args.epochs_estimation + 1):
+        train(args, base_model, device, train_loader, optimizer, epoch)
+
+    print("\nfinished learning H_0")
 
     print('preparing results vectors....')
 
