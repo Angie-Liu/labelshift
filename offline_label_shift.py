@@ -539,38 +539,38 @@ def main():
             true_w = compute_true_w(train_labels, test_labels, n_class, m_train, m_test)
         
 
-            if 'inverse' in args.methods or 'rlls' in args.methods or 'tls' in args.methods:
+            # if 'inverse' in args.methods or 'rlls' in args.methods or 'tls' in args.methods:
 
-                test_loader = data.DataLoader(train_data,
-                    batch_size=args.batch_size, shuffle=False, **kwargs)
-            
-            
-                print('\nTesting on training_data2 to estimate C_yy.')
-                predictions, acc, _ = test(args, base_model, device, test_loader)
+            test_loader = data.DataLoader(train_data,
+                batch_size=args.batch_size, shuffle=False, **kwargs)
+        
+        
+            print('\nTesting on training_data2 to estimate C_yy.')
+            predictions, acc, _ = test(args, base_model, device, test_loader)
 
-                # compute C_yy 
-                C_yy = np.zeros((n_class, n_class)) 
-                #print(m_train_v)
-                predictions = np.concatenate(predictions)
-               
-                for i in range(n_class):
-                    for j in range(n_class):
-                        C_yy[i,j] = float(len(np.where((predictions== i)&(train_labels==j))[0]))/m_train
-                    
-                mu_y_train_hat = np.zeros(n_class)
-                for i in range(n_class):
-                    mu_y_train_hat[i] = float(len(np.where(predictions == i)[0]))/m_train
+            # compute C_yy 
+            C_yy = np.zeros((n_class, n_class)) 
+            #print(m_train_v)
+            predictions = np.concatenate(predictions)
+           
+            for i in range(n_class):
+                for j in range(n_class):
+                    C_yy[i,j] = float(len(np.where((predictions== i)&(train_labels==j))[0]))/m_train
+                
+            mu_y_train_hat = np.zeros(n_class)
+            for i in range(n_class):
+                mu_y_train_hat[i] = float(len(np.where(predictions == i)[0]))/m_train
 
-                # print(mu_y_train)
-                # print(C_yy)
-                # prediction on x_test to estimate mu_y
-                print('\nTesting on test data to estimate mu_y.')
-                test_loader = data.DataLoader(test_data,
-                    batch_size=args.batch_size, shuffle=False, **kwargs)
-                predictions, acc, _ = test(args, base_model, device, test_loader)
-                mu_y = np.zeros(n_class)
-                for i in range(n_class):
-                    mu_y[i] = float(len(np.where(predictions == i)[0]))/m_test
+            # print(mu_y_train)
+            # print(C_yy)
+            # prediction on x_test to estimate mu_y
+            print('\nTesting on test data to estimate mu_y.')
+            test_loader = data.DataLoader(test_data,
+                batch_size=args.batch_size, shuffle=False, **kwargs)
+            predictions, acc, _ = test(args, base_model, device, test_loader)
+            mu_y = np.zeros(n_class)
+            for i in range(n_class):
+                mu_y[i] = float(len(np.where(predictions == i)[0]))/m_test
 
                 # print(mu_y)
 
