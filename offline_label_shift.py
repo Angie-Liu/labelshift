@@ -583,18 +583,24 @@ def main():
             train_loader = data.DataLoader(data.Subset(train_data, range(m_validate, m_train)),
                 batch_size=args.batch_size, shuffle=True, **kwargs)
 
-            if 'rlls' in args.methods:
+            print("Comparing mse from different estimators")
+            w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
+            w2_tensor[k,l,:] = torch.tensor(w2)
+            mse2 = np.sum(np.square(true_w - w2))/n_class
+            print('MSE (rlls), ', mse2)
 
-             
+            w1 = compute_w_inv(C_yy, mu_y)
+            w1_tensor[k,l,:] = torch.tensor(w1)
+
+            mse1 = np.sum(np.square(true_w - w1))/n_class 
+
+            print('MSE (inverse), ', mse1)
+
+            if 'rlls' in args.methods:
 
                 rho = compute_3deltaC(n_class, m_train, 0.05)
                 #alpha = choose_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho, true_w)
                 alpha = 0.001
-                w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
-                w2_tensor[k,l,:] = torch.tensor(w2)
-                mse2 = np.sum(np.square(true_w - w2))/n_class
-
-                print('MSE (rlls), ', mse2)
 
 
                 # Learning IW ERM
@@ -613,13 +619,6 @@ def main():
                 f1p_w2_tensor[k,l, :] = torch.tensor(f1_per)
 
             if 'inverse' in args.methods:
-
-                w1 = compute_w_inv(C_yy, mu_y)
-                w1_tensor[k,l,:] = torch.tensor(w1)
-
-                mse1 = np.sum(np.square(true_w - w1))/n_class 
-
-                print('MSE (inverse), ', mse1)
 
                 # Compare with using w1
                 w = w1
