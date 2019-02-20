@@ -299,6 +299,7 @@ class CIFAR10_SHIFT(data.Dataset):
             indices_target = np.where(train_labels == target_label)[0]
             num_target = len(indices_target)    
             num_train = int(num_target/parameter)
+
             #################
             # num_train = sample_size
             # num_target = int(num_train * parameter)
@@ -324,7 +325,7 @@ class CIFAR10_SHIFT(data.Dataset):
             # testint portion
 
             if parameter_aux < (1.0-parameter_aux)/9 :
-                target_label = (target_label + 1)%10
+                target_label = (target_label + 2)%10
             indices_target = np.where(test_labels == target_label)[0]
             num_target = len(indices_target)    
             num_test = int(num_target/parameter_aux)
@@ -337,6 +338,7 @@ class CIFAR10_SHIFT(data.Dataset):
             num_i = int(num_remain/9)
             indices_test = np.empty((0,1), dtype = int)
             print(num_i)
+
             for i in range(10):
                 indices_i = np.where(test_labels == i)[0]
                 if i != target_label:
@@ -423,6 +425,7 @@ class CIFAR10_SHIFT(data.Dataset):
         return self.test_labels
 
     def get_testsize(self):
+
         return self.m_test
     
 
