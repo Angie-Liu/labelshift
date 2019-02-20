@@ -589,12 +589,11 @@ def main():
             #alpha = choose_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho, true_w)
             alpha = 0.001
             w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
-            w2_tensor[k,l,:] = torch.tensor(w2)
+            
             mse2 = np.sum(np.square(true_w - w2))/n_class
             print('MSE (rlls), ', mse2)
 
             w1 = compute_w_inv(C_yy, mu_y)
-            w1_tensor[k,l,:] = torch.tensor(w1)
 
             mse1 = np.sum(np.square(true_w - w1))/n_class 
 
@@ -605,7 +604,7 @@ def main():
 
                 # Learning IW ERM
                 print('\nTraining using full training data with estimated weights, testing on test set.')
-               
+                w2_tensor[k,l,:] = torch.tensor(w2)
                 w = w2
                 acc, precision, recall, f1, acc_per, precision_per, recall_per, f1_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
                 acc_w2_vec[k,l] = acc
@@ -621,6 +620,7 @@ def main():
             if 'inverse' in args.methods:
 
                 # Compare with using w1
+                w1_tensor[k,l,:] = torch.tensor(w1)
                 w = w1
                 print('\nComparing with using inverse in weight estimation, testing on test set.')
                 acc, precision, recall, f1, acc_per, precision_per, recall_per, f1_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
