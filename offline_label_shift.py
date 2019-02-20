@@ -584,6 +584,10 @@ def main():
                 batch_size=args.batch_size, shuffle=True, **kwargs)
 
             print("Comparing mse from different estimators")
+
+            rho = compute_3deltaC(n_class, m_train, 0.05)
+            #alpha = choose_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho, true_w)
+            alpha = 0.001
             w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
             w2_tensor[k,l,:] = torch.tensor(w2)
             mse2 = np.sum(np.square(true_w - w2))/n_class
@@ -597,10 +601,6 @@ def main():
             print('MSE (inverse), ', mse1)
 
             if 'rlls' in args.methods:
-
-                rho = compute_3deltaC(n_class, m_train, 0.05)
-                #alpha = choose_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho, true_w)
-                alpha = 0.001
 
 
                 # Learning IW ERM
