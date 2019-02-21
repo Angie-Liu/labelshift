@@ -587,7 +587,7 @@ def main():
 
             rho = compute_3deltaC(n_class, m_train, 0.05)
             #alpha = choose_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho, true_w)
-            alpha = 0.01
+            alpha = 0.0001
             w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
             
             mse2 = np.sum(np.square(true_w - w2))/n_class
