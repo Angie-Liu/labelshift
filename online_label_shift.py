@@ -266,6 +266,8 @@ def main():
                         help = 'Label shift type (default: 2)')
     parser.add_argument('--shift-para', type = float,default = 0.2,
                         help = 'Label shift parameter, default : 0.2')
+    parser.add_argument('--shift-para-aux', nargs='+', type = float,
+                        help = 'Label shift aux paramters (needed for shift-type 7 as target shift param, same size as shift-para)')
     parser.add_argument('--model', type = str, default='MLP', metavar='N',
                         help = 'model type to use for cifar10 (default MLP)')
     parser.add_argument('--epochs-estimation', type=int, default=10, metavar='N',
