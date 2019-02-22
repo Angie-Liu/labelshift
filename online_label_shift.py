@@ -266,7 +266,7 @@ def main():
                         help = 'Label shift type (default: 2)')
     parser.add_argument('--shift-para', type = float,default = 0.2,
                         help = 'Label shift parameter, default : 0.2')
-    parser.add_argument('--shift-para-aux', nargs='+', type = float,
+    parser.add_argument('--shift-para-aux', type = float,
                         help = 'Label shift aux paramters (needed for shift-type 7 as target shift param, same size as shift-para)')
     parser.add_argument('--model', type = str, default='MLP', metavar='N',
                         help = 'model type to use for cifar10 (default MLP)')
@@ -290,6 +290,20 @@ def main():
     device = torch.device("cuda" if use_cuda else "cpu")
 
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
+
+    print('Shift-type:', args.shift_type)
+    print('shift parameters: ', args.shift_para)
+    if args.shift_type is 6 :
+        if args.shift_para_aux is None:
+            print('Aux shift para needed!')
+            return
+        else:
+            print('shift parameters aux: ', args.shift_para_aux)
+
+    if args.epochs_validation > args.epochs_training:
+        print('Epochs of validation should be smaller than epochs of training!')
+        return
+    # get fixed ho before trying different shift
 
     if args.data_name  == 'mnist':
         raw_data = MNIST_SHIFT('data/mnist', args.training_size, args.training_size, 1, args.sigma, target_label=2, train=True, download=True,
@@ -389,8 +403,10 @@ def main():
         alpha = np.ones(10) * args.shift_para
         prob = np.random.dirichlet(alpha)
         shift_para = prob
+        shift_para_aux = args.shift_para_aux
     else:
         shift_para = args.shift_para
+        shift_para_aux = args.shift_para_aux
 
     for l in range(num_paras):
 
@@ -398,7 +414,7 @@ def main():
           
             if args.data_name  == 'mnist':
                 # assuming training size >> testing size
-                raw_data = MNIST_SHIFT('data/mnist', args.training_size, args.training_size, args.shift_type, shift_para, target_label=2, train=True, download=True,
+                raw_data = MNIST_SHIFT('data/mnist', args.training_size, args.training_size, args.shift_type, shift_para, parameter_aux = shift_para_aux,target_label=2, train=True, download=True,
                     transform=transforms.Compose([
                                    transforms.ToTensor(),
                                    transforms.Normalize((0.1307,), (0.3081,))
@@ -409,7 +425,7 @@ def main():
                 train_model = train_model.to(device)
                 init_state = copy.deepcopy(train_model.state_dict())
             elif args.data_name == 'cifar10':
-                raw_data = CIFAR10_SHIFT('data/cifar10', args.training_size, args.training_size, args.shift_type, shift_para, target_label=2,
+                raw_data = CIFAR10_SHIFT('data/cifar10', args.training_size, args.training_size, args.shift_type, shift_para, parameter_aux = shift_para_aux, target_label=2,
                     transform=transforms.Compose([
                                 transforms.RandomCrop(32, padding=4),
                                 transforms.RandomHorizontalFlip(),
@@ -488,7 +504,7 @@ def main():
             #alpha = choose_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho, true_w)
             alpha = 0.0001
             w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
-            w4 = compute_w_tls(Cyy, mu_y, mu_y_train_hat)
+            w4 = compute_w_tls(C_yy, mu_y, mu_y_train_hat)
 
             # use original test set to test
             test_data = data.Subset(raw_data, test_indices)
@@ -514,7 +530,7 @@ def main():
 
             print('Mean square error, ', mse1)
             print('Mean square error, ', mse2)
-            print('Mean square error, ', mse3)
+            print('Mean square error, ', mse4)
 
             for h in range(len(args.labda)):
                 
