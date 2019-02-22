@@ -178,8 +178,8 @@ def compute_w_tls(C_yy,mu_y,mu_train_y):
     TLS
     '''
     n = C_yy.shape[0]
-    b = mu_y - mu_train_y
-    # augment x with y
+    b = mu_y
+  
     obj = np.zeros((n,n+1))
     obj[0:n, 0:n] = C_yy
     obj[0:n, -1] = b
@@ -190,11 +190,10 @@ def compute_w_tls(C_yy,mu_y,mu_train_y):
     vyy = vh[-1, -1]
     theta = -vxx/vyy
     
-    w = 1 + theta
+    w = theta
 
     w[w<=0] = 0
     print('Estimated w is', w)
-    #print(constraints[0].dual_value)
     return w
 
 
@@ -748,7 +747,7 @@ def main():
         torch.save(acc_tw_vec, 'acc_tw.pt')
         torch.save(precision_tw_vec, 'precision_tw.pt')
         torch.save(recall_tw_vec, 'recall_tw.pt')
-        torch.save(f1_tw_vec, 'f1_tw.pt')
+        torch.save(f1_nw_vec, 'f1_tw.pt')
         
         torch.save(tw_tensor, 'tw.pt')
         torch.save(accp_tw_tensor, 'tw_accp.pt')

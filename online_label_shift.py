@@ -136,6 +136,31 @@ def compute_w_opt(C_yy,mu_y,mu_train_y, rho, labda = 1):
    
     return w
 
+def compute_w_tls(C_yy,mu_y,mu_train_y):
+    '''
+    TLS
+    '''
+    n = C_yy.shape[0]
+    b = mu_y
+  
+    obj = np.zeros((n,n+1))
+    obj[0:n, 0:n] = C_yy
+    obj[0:n, -1] = b
+    # SVD
+    u, s, vh = np.linalg.svd(obj, full_matrices=True)
+    # calculate theta
+    vxx = vh[0:n, -1]
+    vyy = vh[-1, -1]
+    theta = -vxx/vyy
+    
+    w = theta
+
+    w[w<=0] = 0
+    print('Estimated w is', w)
+    return w
+
+
+
 def compute_3deltaC(n_class, n_train, delta):
     rho = 3*(2*np.log(2*n_class/delta)/(3*n_train) + np.sqrt(2*np.log(2*n_class/delta)/n_train))
     return rho 
@@ -213,7 +238,8 @@ def train_validate_test(args, device, use_cuda, w, train_model, init_state, trai
     predictions, acc, _ = test(args, train_model, device, test_loader)
     f1 = f1_score(test_labels, predictions, average='macro')
     f2 = f1_score(test_labels, predictions, average='micro') 
-    acc_per_class = acc_perclass(test_labels, predictions, n_class) 
+    acc_per_class = acc_perclass(test_labels, predictions, n_class)
+     
     print('F1-score-micro:', f2)
     print('F1-score-macro:', f1)
     return acc, f1, f2, acc_per_class
@@ -230,8 +256,8 @@ def main():
     parser.add_argument('--sigma', type=float, default=0, help='For training default h_0')
     parser.add_argument('--data-name', type=str, default='mnist', metavar='N',
                         help='dataset name, mnist or cifar10 (default: mnist)')
-    parser.add_argument('--sample-size', type=int, default=30000, metavar='N',
-                        help='sample size for both training and testing (default: 50000)')
+    parser.add_argument('--training-size', type=int, default=30000, metavar='N',
+                        help='sample size for both training (default: 30000)')
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
@@ -264,7 +290,7 @@ def main():
     kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 
     if args.data_name  == 'mnist':
-        raw_data = MNIST_SHIFT('data/mnist', args.sample_size, 1, args.sigma, target_label=2, train=True, download=True,
+        raw_data = MNIST_SHIFT('data/mnist', args.training_size, args.training_size, 1, args.sigma, target_label=2, train=True, download=True,
             transform=transforms.Compose([
                            transforms.ToTensor(),
                            transforms.Normalize((0.1307,), (0.3081,))
@@ -272,7 +298,7 @@ def main():
         D_in = 784
         base_model = Net(D_in, 256, 10)
     elif args.data_name == 'cifar10':
-        raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, 1, args.sigma, target_label=2,
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.training_size, args.training_size, 1, args.sigma, target_label=2,
             transform=transforms.Compose([
                         transforms.RandomCrop(32, padding=4),
                         transforms.RandomHorizontalFlip(),
@@ -351,6 +377,12 @@ def main():
     accp_w1_tensor = torch.zeros([args.iterations, num_paras, 10])
     w1_tensor = torch.zeros([args.iterations, num_paras, 10])
 
+    acc_w4_vec = torch.zeros([args.iterations, num_paras])
+    f1_w4_vec = torch.zeros([args.iterations, num_paras])
+    f2_w4_vec = torch.zeros([args.iterations, num_paras])
+    accp_w4_tensor = torch.zeros([args.iterations, num_paras, 10])
+    w4_tensor = torch.zeros([args.iterations, num_paras, 10])
+
     if (args.shift_type == 3) or (args.shift_type == 4):
         alpha = np.ones(10) * args.shift_para
         prob = np.random.dirichlet(alpha)
@@ -363,7 +395,8 @@ def main():
         for k in range(args.iterations):
           
             if args.data_name  == 'mnist':
-                raw_data = MNIST_SHIFT('data/mnist', args.sample_size, args.shift_type, shift_para, target_label=2, train=True, download=True,
+                # assuming training size >> testing size
+                raw_data = MNIST_SHIFT('data/mnist', args.training_size, args.training_size, args.shift_type, shift_para, target_label=2, train=True, download=True,
                     transform=transforms.Compose([
                                    transforms.ToTensor(),
                                    transforms.Normalize((0.1307,), (0.3081,))
@@ -374,7 +407,7 @@ def main():
                 train_model = train_model.to(device)
                 init_state = copy.deepcopy(train_model.state_dict())
             elif args.data_name == 'cifar10':
-                raw_data = CIFAR10_SHIFT('data/cifar10', args.sample_size, args.shift_type, shift_para, target_label=2,
+                raw_data = CIFAR10_SHIFT('data/cifar10', args.training_size, args.training_size, args.shift_type, shift_para, target_label=2,
                     transform=transforms.Compose([
                                 transforms.RandomCrop(32, padding=4),
                                 transforms.RandomHorizontalFlip(),
@@ -451,9 +484,9 @@ def main():
 
             rho = compute_3deltaC(n_class, m_train, 0.05)
             #alpha = choose_alpha(n_class, C_yy, mu_y, mu_y_train_hat, rho, true_w)
-            alpha = 0.001
+            alpha = 0.0001
             w2 = compute_w_opt(C_yy, mu_y, mu_y_train_hat, alpha * rho)
-
+            w4 = compute_w_tls(Cyy, mu_y, mu_y_train_hat)
 
             # use original test set to test
             test_data = data.Subset(raw_data, test_indices)
@@ -475,9 +508,11 @@ def main():
 
             mse1 = np.sum(np.square(true_w - w1))/n_class
             mse2 = np.sum(np.square(true_w - w2))/n_class
+            mse4 = np.sum(np.square(true_w - w4))/n_class
 
             print('Mean square error, ', mse1)
             print('Mean square error, ', mse2)
+            print('Mean square error, ', mse3)
 
             for h in range(len(args.labda)):
                 
@@ -518,6 +553,15 @@ def main():
             f1_w1_vec[k,l] = f1 
             f2_w1_vec[k,l] = f2 
             accp_w1_tensor[k,l, :] = torch.tensor(acc_per)
+
+            w = w4
+            acc, f1, f2, acc_per = train_validate_test(args, device, use_cuda, w, train_model, init_state, train_loader, test_loader, validate_loader, test_labels, n_class)
+            acc_w4_vec[k,l] = acc
+            f1_w4_vec[k,l] = f1 
+            f2_w4_vec[k,l] = f2 
+            accp_w4_tensor[k,l, :] = torch.tensor(acc_per)
+
+
 
         print('Using true weight ')
         w = true_w
@@ -560,6 +604,12 @@ def main():
     torch.save(f2_w1_vec, 'f2_w1.pt')
     torch.save(w1_tensor, 'w1.pt')
     torch.save(accp_w1_tensor, 'w1_accp.pt')
+
+    torch.save(acc_w4_vec, 'acc_w4.pt')
+    torch.save(f1_w4_vec, 'f1_w4.pt')
+    torch.save(f2_w4_vec, 'f2_w4.pt')
+    torch.save(w4_tensor, 'w4.pt')
+    torch.save(accp_w4_tensor, 'w4_accp.pt')
 
 
 
