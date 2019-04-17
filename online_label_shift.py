@@ -253,7 +253,7 @@ def main():
     parser.add_argument('--testsize-range', nargs='+', type = int,
                         help = 'Required: test size (a list), < sample size', required=True)
     parser.add_argument('--labda', nargs='+', type = float, help = 'Requred: lambda', required = True)
-    parser.add_argument('--sigma', type=float, default=0, help='For training default h_0')
+    parser.add_argument('--sigma', type=float, default=0, help='Knock shift for training default h_0')
     parser.add_argument('--data-name', type=str, default='mnist', metavar='N',
                         help='dataset name, mnist or cifar10 (default: mnist)')
     parser.add_argument('--training-size', type=int, default=30000, metavar='N',
@@ -358,6 +358,8 @@ def main():
         train(args, base_model, device, train_loader, optimizer, epoch)
 
     print("Finish training for h_0")
+
+    print('preparing results vectors....')
    
     num_paras = len(args.testsize_range)
     print(num_paras)
@@ -371,7 +373,6 @@ def main():
     f1_w2_vec = torch.zeros([args.iterations, num_paras, num_labda])
     f2_w2_vec = torch.zeros([args.iterations, num_paras, num_labda])
     accp_w2_tensor = torch.zeros([args.iterations, num_paras, num_labda, 10])
-
     w2_tensor = torch.zeros([args.iterations, num_paras, num_labda, 10])
 
 
@@ -409,11 +410,11 @@ def main():
         shift_para_aux = args.shift_para_aux
 
     for l in range(num_paras):
-
+        # loop number of paras
         for k in range(args.iterations):
-          
+            # for each para, loop iterations
             if args.data_name  == 'mnist':
-                # assuming training size >> testing size
+
                 raw_data = MNIST_SHIFT('data/mnist', args.training_size, args.training_size, args.shift_type, shift_para, parameter_aux = shift_para_aux,target_label=2, train=True, download=True,
                     transform=transforms.Compose([
                                    transforms.ToTensor(),
@@ -528,16 +529,14 @@ def main():
             mse2 = np.sum(np.square(true_w - w2))/n_class
             mse4 = np.sum(np.square(true_w - w4))/n_class
 
-            print('Mean square error, ', mse1)
-            print('Mean square error, ', mse2)
-            print('Mean square error, ', mse4)
+            print('Mean square error (inverse), ', mse1)
+            print('Mean square error (rlls), ', mse2)
+            print('Mean square error (tls), ', mse4)
 
             for h in range(len(args.labda)):
+                # loop different lambda values
                 
-                # if h != 1:
                 labda_use = args.labda[h]
-                # else:
-                #     labda_use = labda
 
                 print('\nTraining using full training data with estimated weights, testing on test set.')
                 print('Using lambda = ', labda_use)
@@ -545,7 +544,7 @@ def main():
                 mse3 = np.sum(np.square(true_w - w3))/n_class
                 w2_tensor[k,l,h, :] = torch.tensor(w3)
                
-                print('Mean square error, ', mse3)
+                print('Mean square error with lambda, ', mse3)
 
                 w = w3
 

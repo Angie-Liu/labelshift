@@ -60,15 +60,23 @@ class CIFAR10_SHIFT(data.Dataset):
         """
         Converted function from original torch cifar10 class :
         new parameters:
-        sample_size: int, sample size of both training and testing set
-        shift_type: int, 1 for knock one shift, 2 for tweak one shift and 3 for dirichlet shift
-                         4 for dirichlet shift on the testing set, training is uniform
+        sample_size: int, sample size of both source and target set
+        shift_type: int, 1 for knock one shift on source, target is uniform
+                         2 for tweak one shift on source, target is uniform
+                         3 for dirichlet shift on source, target is uniform
+                         4 for dirichlet shift on the target set, source is uniform
+                         5 for tweak one shift on the target set, source is uniform
+                         6 for Minority class shift on source, target is uniform
+                         7 for tweak on shift on both source and target 
         parameter: float in [0, 1], delta for knock one shift, delete target_label by delta
                                     or, rho for tweak one shift, set target_label probability as rho, others even
                                     or, alpha for dirichlet shift
-        target_label: int, target label for knock one and tweak one shift
-
-        REMOVED paramter: train -- since we will merge training and testing 
+                                    or, # of minority class for Minority class shift
+                                    or, rho for tweak one shift on source for 7
+        parameter_aux: float in [0, 1], required for 6 and 7
+                                    6, the proportion of data for minority class
+                                    7, rho for tweak one shift on target for 7
+        target_label: int, target label for knock one and tweak one shift (1,2,5) 
         """
         self.root = os.path.expanduser(root)
         self.transform = transform
@@ -267,7 +275,7 @@ class CIFAR10_SHIFT(data.Dataset):
             m_test = len(test_labels)
 
         elif shift_type == 6:
-            # randomly choose 2 target labels
+            # randomly choose target labels
             target_label = np.linspace(1, parameter, parameter) 
             para = parameter_aux
             prob = (1 - len(target_label) *para)/(10 - len(target_label))

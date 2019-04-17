@@ -339,7 +339,7 @@ def main():
         base_model = Net(D_in, 256, 10)
         
     elif args.data_name == 'cifar10':
-        raw_data = CIFAR10_SHIFT('data/cifar10', args.training_size, args.testing_size, 1, 0.5, target_label=2,
+        raw_data = CIFAR10_SHIFT('data/cifar10', args.training_size, args.testing_size, 1, 0, target_label=2,
             transform=transforms.Compose([
                         transforms.RandomCrop(32, padding=4),
                         transforms.RandomHorizontalFlip(),
@@ -351,7 +351,7 @@ def main():
     else:
         raise RuntimeError("Unsupported dataset")
 
-# saparate into training and testing
+    # saparate into training and testing
     m = len(raw_data)
     m_test = raw_data.get_testsize()
     print('Test size,', m_test)
@@ -376,7 +376,7 @@ def main():
     
     base_model = base_model.to(device)
     optimizer = optim.SGD(base_model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
-    print('\nTraining using training_data1 to estimate weights.') 
+    print('\nTraining using training_data to estimate weights.') 
     for epoch in range(1, args.epochs_estimation + 1):
         train(args, base_model, device, train_loader, optimizer, epoch)
 
@@ -470,6 +470,7 @@ def main():
 
 
     for l in range(num_paras):
+        # loop number of paras
 
         if (args.shift_type == 3) or (args.shift_type == 4):
             alpha = np.ones(10) * args.shift_para[l]
@@ -485,7 +486,7 @@ def main():
 
 
         for k in range(args.iterations):
-      
+            # for each para, loop iterations
             if args.data_name  == 'mnist':
                 raw_data = MNIST_SHIFT('data/mnist', args.training_size, args.testing_size, args.shift_type, shift_para, parameter_aux = shift_para_aux, target_label=2, train=True, download=True,
                     transform=transforms.Compose([
@@ -544,7 +545,7 @@ def main():
                 batch_size=args.batch_size, shuffle=False, **kwargs)
         
         
-            print('\nTesting on training_data2 to estimate C_yy.')
+            print('\nTesting on training_data to estimate C_yy.')
             predictions, acc, _ = test(args, base_model, device, test_loader)
 
             # compute C_yy 
@@ -597,7 +598,7 @@ def main():
             mse1 = np.sum(np.square(true_w - w1))/n_class 
 
             print('MSE (inverse), ', mse1)
-
+            # for each iteraion, loop different method after weight estimation
             if 'rlls' in args.methods:
 
 
@@ -703,7 +704,7 @@ def main():
                 precisionp_w3_tensor[k,l, :] = torch.tensor(precision_per)
                 recallp_w3_tensor[k,l, :] = torch.tensor(recall_per)
                 f1p_w3_tensor[k,l, :] = torch.tensor(f1_per)
-            
+    # saving results
     if 'rlls' in args.methods:
         torch.save(acc_w2_vec, 'acc_w2.pt')
         torch.save(precision_w2_vec, 'precision_w2.pt')
